@@ -5,6 +5,7 @@ require("dotenv").config();
 
 const connectDB = require("./config/db");
 const { notFound, errorHandler } = require("./middleware/errorHandler");
+const authRoutes = require("./routes/auth");
 
 const doctorRoutes = require("./routes/doctor/doctorRoutes");
 const pharmacyRoutes = require("./routes/pharmacy/pharmacyRoutes");
@@ -38,6 +39,7 @@ app.use("/api/diagnostics-centers", diagnosticsRoutes);
 app.use("/api/partner-organizations", partnerRoutes);
 app.use("/api/job-seekers", jobSeekerRoutes);
 app.use("/api/employers", employerRoutes);
+app.use("/api/auth", authRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

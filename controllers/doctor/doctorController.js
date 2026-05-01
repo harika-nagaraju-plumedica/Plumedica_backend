@@ -4,6 +4,7 @@ const asyncHandler = require("../../utils/asyncHandler");
 const sendResponse = require("../../utils/apiResponse");
 const AppError = require("../../utils/AppError");
 const { validateRequiredFields } = require("../../utils/validation");
+const { generateToken } = require("../../utils/token");
 
 const normalizePath = (filePath) => (filePath ? filePath.replace(/\\/g, "/") : null);
 
@@ -55,7 +56,19 @@ const registerDoctor = asyncHandler(async (req, res) => {
     medicalLicenseDocument: normalizePath(req.file?.path),
   });
 
-  return sendResponse(res, 201, true, "Doctor registered successfully", doctor);
+  const doctorData = doctor.toObject();
+  delete doctorData.password;
+
+  const token = generateToken({
+    id: doctor._id,
+    role: "doctor",
+    email: doctor.email,
+  });
+
+  return sendResponse(res, 201, true, "Doctor registered successfully", {
+    profile: doctorData,
+    token,
+  });
 });
 
 module.exports = {

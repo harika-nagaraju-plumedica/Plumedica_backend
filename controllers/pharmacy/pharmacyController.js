@@ -3,6 +3,7 @@ const asyncHandler = require("../../utils/asyncHandler");
 const sendResponse = require("../../utils/apiResponse");
 const AppError = require("../../utils/AppError");
 const { validateRequiredFields } = require("../../utils/validation");
+const { generateToken } = require("../../utils/token");
 
 const normalizePath = (filePath) => (filePath ? filePath.replace(/\\/g, "/") : null);
 
@@ -32,7 +33,16 @@ const registerPharmacy = asyncHandler(async (req, res) => {
     drugLicense: normalizePath(req.files?.drugLicense?.[0]?.path),
   });
 
-  return sendResponse(res, 201, true, "Pharmacy registered successfully", pharmacy);
+  const token = generateToken({
+    id: pharmacy._id,
+    role: "pharmacy",
+    email: pharmacy.email || null,
+  });
+
+  return sendResponse(res, 201, true, "Pharmacy registered successfully", {
+    profile: pharmacy,
+    token,
+  });
 });
 
 module.exports = {

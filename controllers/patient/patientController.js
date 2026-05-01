@@ -3,6 +3,7 @@ const asyncHandler = require("../../utils/asyncHandler");
 const sendResponse = require("../../utils/apiResponse");
 const AppError = require("../../utils/AppError");
 const { validateRequiredFields } = require("../../utils/validation");
+const { generateToken } = require("../../utils/token");
 
 const registerPatient = asyncHandler(async (req, res) => {
   const requiredFields = ["fullName", "email", "mobile", "gender", "bloodGroup", "address"];
@@ -13,7 +14,17 @@ const registerPatient = asyncHandler(async (req, res) => {
   }
 
   const patient = await Patient.create(req.body);
-  return sendResponse(res, 201, true, "Patient registered successfully", patient);
+
+  const token = generateToken({
+    id: patient._id,
+    role: "patient",
+    email: patient.email,
+  });
+
+  return sendResponse(res, 201, true, "Patient registered successfully", {
+    profile: patient,
+    token,
+  });
 });
 
 module.exports = {

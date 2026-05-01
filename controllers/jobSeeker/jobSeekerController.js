@@ -3,6 +3,7 @@ const asyncHandler = require("../../utils/asyncHandler");
 const sendResponse = require("../../utils/apiResponse");
 const AppError = require("../../utils/AppError");
 const { validateRequiredFields } = require("../../utils/validation");
+const { generateToken } = require("../../utils/token");
 
 const registerJobSeeker = asyncHandler(async (req, res) => {
   const requiredFields = ["fullName", "email", "phone", "experience"];
@@ -13,7 +14,17 @@ const registerJobSeeker = asyncHandler(async (req, res) => {
   }
 
   const jobSeeker = await JobSeeker.create(req.body);
-  return sendResponse(res, 201, true, "Job seeker registered successfully", jobSeeker);
+
+  const token = generateToken({
+    id: jobSeeker._id,
+    role: "job-seeker",
+    email: jobSeeker.email,
+  });
+
+  return sendResponse(res, 201, true, "Job seeker registered successfully", {
+    profile: jobSeeker,
+    token,
+  });
 });
 
 module.exports = {

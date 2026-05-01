@@ -3,6 +3,7 @@ const asyncHandler = require("../../utils/asyncHandler");
 const sendResponse = require("../../utils/apiResponse");
 const AppError = require("../../utils/AppError");
 const { validateRequiredFields } = require("../../utils/validation");
+const { generateToken } = require("../../utils/token");
 
 const normalizePath = (filePath) => (filePath ? filePath.replace(/\\/g, "/") : null);
 
@@ -36,7 +37,16 @@ const registerHospital = asyncHandler(async (req, res) => {
     ceLicense: normalizePath(ceLicenseFile.path),
   });
 
-  return sendResponse(res, 201, true, "Hospital registered successfully", hospital);
+  const token = generateToken({
+    id: hospital._id,
+    role: "hospital",
+    email: hospital.email,
+  });
+
+  return sendResponse(res, 201, true, "Hospital registered successfully", {
+    profile: hospital,
+    token,
+  });
 });
 
 module.exports = {
