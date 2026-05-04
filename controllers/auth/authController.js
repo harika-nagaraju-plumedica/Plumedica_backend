@@ -5,6 +5,13 @@ const sendResponse = require("../../utils/apiResponse");
 const AppError = require("../../utils/AppError");
 const { validateRequiredFields } = require("../../utils/validation");
 const { generateToken } = require("../../utils/token");
+const { MODULE_ALIASES, normalizeEmail, findMatchesByEmail } = require("../../utils/authModules");
+
+const sanitizeProfile = (doc) => {
+  const profile = doc.toObject();
+  delete profile.password;
+  return profile;
+};
 
 const registerUser = asyncHandler(async (req, res) => {
   const requiredFields = ["name", "email", "password"];
@@ -14,16 +21,17 @@ const registerUser = asyncHandler(async (req, res) => {
     throw new AppError(`Missing required fields: ${missingFields.join(", ")}`, 400);
   }
 
-  const existingUser = await User.findOne({ email: req.body.email.toLowerCase() });
-  if (existingUser) {
-    throw new AppError("User already exists with this email", 409);
+  const normalizedEmail = normalizeEmail(req.body.email);
+  const existingAccounts = await findMatchesByEmail(normalizedEmail);
+  if (existingAccounts.length) {
+    throw new AppError("Account already exists with this email", 409);
   }
 
   const hashedPassword = await bcrypt.hash(req.body.password, 10);
 
   const user = await User.create({
     name: req.body.name,
-    email: req.body.email,
+    email: normalizedEmail,
     password: hashedPassword,
     phone: req.body.phone,
   });
@@ -43,6 +51,54 @@ const registerUser = asyncHandler(async (req, res) => {
   });
 });
 
+const loginUser = asyncHandler(async (req, res) => {
+  const requiredFields = ["email", "password"];
+  const missingFields = validateRequiredFields(req.body, requiredFields);
+
+  if (missingFields.length) {
+    throw new AppError(`Missing required fields: ${missingFields.join(", ")}`, 400);
+  }
+
+  const normalizedEmail = normalizeEmail(req.body.email);
+  const password = req.body.password;
+  const requestedModule = req.body.module
+    ? MODULE_ALIASES[String(req.body.module).toLowerCase()]
+    : null;
+
+  if (req.body.module && !requestedModule) {
+    throw new AppError("Invalid module value", 400);
+  }
+
+  const matches = await findMatchesByEmail(normalizedEmail, requestedModule);
+
+  if (!matches.length) {
+    throw new AppError("Invalid email or password", 401);
+  }
+
+  if (matches.length > 1) {
+    throw new AppError("Multiple accounts found for this email. Please provide module in request body.", 409);
+  }
+
+  const authenticated = matches[0];
+  const isPasswordValid = await bcrypt.compare(password, authenticated.profile.password || "");
+  if (!isPasswordValid) {
+    throw new AppError("Invalid email or password", 401);
+  }
+
+  const token = generateToken({
+    id: authenticated.profile._id,
+    role: authenticated.role,
+    email: authenticated.profile.email,
+  });
+
+  return sendResponse(res, 200, true, "Login successful", {
+    module: authenticated.key,
+    profile: sanitizeProfile(authenticated.profile),
+    token,
+  });
+});
+
 module.exports = {
   registerUser,
+  loginUser,
 };

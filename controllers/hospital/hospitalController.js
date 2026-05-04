@@ -1,9 +1,11 @@
+const bcrypt = require("bcryptjs");
 const Hospital = require("../../models/Hospital");
 const asyncHandler = require("../../utils/asyncHandler");
 const sendResponse = require("../../utils/apiResponse");
 const AppError = require("../../utils/AppError");
 const { validateRequiredFields } = require("../../utils/validation");
 const { generateToken } = require("../../utils/token");
+const { normalizeEmail, findMatchesByEmail } = require("../../utils/authModules");
 
 const normalizePath = (filePath) => (filePath ? filePath.replace(/\\/g, "/") : null);
 
@@ -15,6 +17,7 @@ const registerHospital = asyncHandler(async (req, res) => {
     "gstNumber",
     "ceRegistrationNumber",
     "email",
+    "password",
     "mobile",
     "address",
   ];
@@ -31,11 +34,24 @@ const registerHospital = asyncHandler(async (req, res) => {
     throw new AppError("gstCertificate and ceLicense files are required", 400);
   }
 
+  const normalizedEmail = normalizeEmail(req.body.email);
+  const existingAccounts = await findMatchesByEmail(normalizedEmail);
+  if (existingAccounts.length) {
+    throw new AppError("Account already exists with this email", 409);
+  }
+
+  const hashedPassword = await bcrypt.hash(req.body.password, 10);
+
   const hospital = await Hospital.create({
     ...req.body,
+    email: normalizedEmail,
+    password: hashedPassword,
     gstCertificate: normalizePath(gstCertificateFile.path),
     ceLicense: normalizePath(ceLicenseFile.path),
   });
+
+  const hospitalData = hospital.toObject();
+  delete hospitalData.password;
 
   const token = generateToken({
     id: hospital._id,
@@ -44,7 +60,7 @@ const registerHospital = asyncHandler(async (req, res) => {
   });
 
   return sendResponse(res, 201, true, "Hospital registered successfully", {
-    profile: hospital,
+    profile: hospitalData,
     token,
   });
 });

@@ -5,6 +5,7 @@ const sendResponse = require("../../utils/apiResponse");
 const AppError = require("../../utils/AppError");
 const { validateRequiredFields } = require("../../utils/validation");
 const { generateToken } = require("../../utils/token");
+const { normalizeEmail, findMatchesByEmail } = require("../../utils/authModules");
 
 const normalizePath = (filePath) => (filePath ? filePath.replace(/\\/g, "/") : null);
 
@@ -47,10 +48,17 @@ const registerDoctor = asyncHandler(async (req, res) => {
     throw new AppError("availabilitySlots is required and must have at least one day", 400);
   }
 
+  const normalizedEmail = normalizeEmail(req.body.email);
+  const existingAccounts = await findMatchesByEmail(normalizedEmail);
+  if (existingAccounts.length) {
+    throw new AppError("Account already exists with this email", 409);
+  }
+
   const hashedPassword = await bcrypt.hash(req.body.password, 10);
 
   const doctor = await Doctor.create({
     ...req.body,
+    email: normalizedEmail,
     password: hashedPassword,
     availabilitySlots,
     medicalLicenseDocument: normalizePath(req.file?.path),

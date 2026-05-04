@@ -8,6 +8,7 @@ const hospitalSchema = new mongoose.Schema(
     gstNumber: { type: String, required: true, trim: true, uppercase: true, unique: true },
     ceRegistrationNumber: { type: String, required: true, trim: true, unique: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    password: { type: String, required: true, minlength: 6 },
     mobile: { type: String, required: true, trim: true },
     address: { type: String, required: true, trim: true },
     gstCertificate: { type: String, required: true },
