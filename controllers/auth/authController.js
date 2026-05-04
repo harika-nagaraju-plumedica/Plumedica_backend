@@ -80,7 +80,16 @@ const loginUser = asyncHandler(async (req, res) => {
   }
 
   const authenticated = matches[0];
-  const isPasswordValid = await bcrypt.compare(password, authenticated.profile.password || "");
+  const storedPassword = authenticated.profile.password || "";
+  let isPasswordValid = await bcrypt.compare(password, storedPassword);
+
+  // Backward compatibility for legacy records that may have stored plain text passwords.
+  if (!isPasswordValid && storedPassword === password) {
+    isPasswordValid = true;
+    authenticated.profile.password = await bcrypt.hash(password, 10);
+    await authenticated.profile.save();
+  }
+
   if (!isPasswordValid) {
     throw new AppError("Invalid email or password", 401);
   }
