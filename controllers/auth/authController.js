@@ -75,7 +75,7 @@ const loginUser = asyncHandler(async (req, res) => {
 
   if (!matches.length) {
     if (isLoginDebugEnabled) {
-      return sendResponse(res, 401, false, "Invalid email or password", {
+      return sendResponse(res, 401, false, "Email not found", {
         debug: {
           emailChecked: normalizedEmail,
           emailFound: false,
@@ -85,7 +85,7 @@ const loginUser = asyncHandler(async (req, res) => {
       });
     }
 
-    throw new AppError("Invalid email or password", 401);
+    throw new AppError("Email not found", 401);
   }
 
   if (matches.length > 1) {
@@ -105,7 +105,7 @@ const loginUser = asyncHandler(async (req, res) => {
 
   if (!isPasswordValid) {
     if (isLoginDebugEnabled) {
-      return sendResponse(res, 401, false, "Invalid email or password", {
+      return sendResponse(res, 401, false, "Incorrect password", {
         debug: {
           emailChecked: normalizedEmail,
           emailFound: true,
@@ -115,7 +115,7 @@ const loginUser = asyncHandler(async (req, res) => {
       });
     }
 
-    throw new AppError("Invalid email or password", 401);
+    throw new AppError("Incorrect password", 401);
   }
 
   const token = generateToken({
