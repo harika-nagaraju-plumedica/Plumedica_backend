@@ -7,6 +7,8 @@ const { validateRequiredFields } = require("../../utils/validation");
 const { generateToken } = require("../../utils/token");
 const { MODULE_ALIASES, normalizeEmail, findMatchesByEmail } = require("../../utils/authModules");
 
+const isLoginDebugEnabled = process.env.AUTH_LOGIN_DEBUG === "true";
+
 const sanitizeProfile = (doc) => {
   const profile = doc.toObject();
   delete profile.password;
@@ -72,6 +74,17 @@ const loginUser = asyncHandler(async (req, res) => {
   const matches = await findMatchesByEmail(normalizedEmail, requestedModule);
 
   if (!matches.length) {
+    if (isLoginDebugEnabled) {
+      return sendResponse(res, 401, false, "Invalid email or password", {
+        debug: {
+          emailChecked: normalizedEmail,
+          emailFound: false,
+          moduleFound: null,
+          passwordMatched: false,
+        },
+      });
+    }
+
     throw new AppError("Invalid email or password", 401);
   }
 
@@ -91,6 +104,17 @@ const loginUser = asyncHandler(async (req, res) => {
   }
 
   if (!isPasswordValid) {
+    if (isLoginDebugEnabled) {
+      return sendResponse(res, 401, false, "Invalid email or password", {
+        debug: {
+          emailChecked: normalizedEmail,
+          emailFound: true,
+          moduleFound: authenticated.key,
+          passwordMatched: false,
+        },
+      });
+    }
+
     throw new AppError("Invalid email or password", 401);
   }
 
