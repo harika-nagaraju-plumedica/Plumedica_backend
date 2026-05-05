@@ -18,4 +18,9 @@ const patientSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+patientSchema.index({ status: 1, createdAt: -1 });
+patientSchema.index({ fullName: 1 });
+patientSchema.index({ email: 1 });
+patientSchema.index({ address: 1 });
+
 module.exports = mongoose.model("Patient", patientSchema);

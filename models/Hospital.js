@@ -15,11 +15,17 @@ const hospitalSchema = new mongoose.Schema(
     ceLicense: { type: String, required: true },
     status: {
       type: String,
-      enum: ["Pending Verification", "Approved", "Rejected"],
-      default: "Pending Verification",
+      enum: ["Pending", "Approved", "Rejected"],
+      default: "Pending",
     },
+    rejectionReason: { type: String, default: "" },
   },
   { timestamps: true }
 );
+
+hospitalSchema.index({ status: 1, createdAt: -1 });
+hospitalSchema.index({ hospitalName: 1 });
+hospitalSchema.index({ email: 1 });
+hospitalSchema.index({ city: 1 });
 
 module.exports = mongoose.model("Hospital", hospitalSchema);

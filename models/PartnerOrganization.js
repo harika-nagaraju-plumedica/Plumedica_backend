@@ -12,8 +12,13 @@ const partnerOrganizationSchema = new mongoose.Schema(
       enum: ["Pending", "Approved", "Rejected"],
       default: "Pending",
     },
+    rejectionReason: { type: String, default: "" },
   },
   { timestamps: true }
 );
+
+partnerOrganizationSchema.index({ status: 1, createdAt: -1 });
+partnerOrganizationSchema.index({ organizationName: 1 });
+partnerOrganizationSchema.index({ email: 1 });
 
 module.exports = mongoose.model("PartnerOrganization", partnerOrganizationSchema);

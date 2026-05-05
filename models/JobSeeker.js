@@ -16,4 +16,8 @@ const jobSeekerSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+jobSeekerSchema.index({ status: 1, createdAt: -1 });
+jobSeekerSchema.index({ fullName: 1 });
+jobSeekerSchema.index({ email: 1 });
+
 module.exports = mongoose.model("JobSeeker", jobSeekerSchema);

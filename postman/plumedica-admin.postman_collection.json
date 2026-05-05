@@ -1,0 +1,393 @@
+{
+  "info": {
+    "_postman_id": "2e3f8d1f-ef8e-4a9b-9db3-d5a819c2f8f3",
+    "name": "PluMedica Admin APIs",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Admin Login",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/login",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "admin", "login"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"admin@plumedica.com\",\n  \"password\": \"ChangeThisStrongPassword\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Dashboard",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/dashboard",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "admin", "dashboard"]
+        }
+      }
+    },
+    {
+      "name": "List Doctors",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/doctors?search=&status=Pending&page=1&limit=10",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "admin", "doctors"],
+          "query": [
+            { "key": "search", "value": "" },
+            { "key": "status", "value": "Pending" },
+            { "key": "page", "value": "1" },
+            { "key": "limit", "value": "10" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "List Hospitals",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/hospitals?search=&status=Pending&page=1&limit=10",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "admin", "hospitals"],
+          "query": [
+            { "key": "search", "value": "" },
+            { "key": "status", "value": "Pending" },
+            { "key": "page", "value": "1" },
+            { "key": "limit", "value": "10" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "List Pharmacies",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/pharmacies?search=&status=Pending&page=1&limit=10",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "admin", "pharmacies"],
+          "query": [
+            { "key": "search", "value": "" },
+            { "key": "status", "value": "Pending" },
+            { "key": "page", "value": "1" },
+            { "key": "limit", "value": "10" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "List Insurance",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/insurance?search=&status=Pending&page=1&limit=10",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "admin", "insurance"],
+          "query": [
+            { "key": "search", "value": "" },
+            { "key": "status", "value": "Pending" },
+            { "key": "page", "value": "1" },
+            { "key": "limit", "value": "10" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "List Patients",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/patients?search=&status=Pending&page=1&limit=10",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "admin", "patients"],
+          "query": [
+            { "key": "search", "value": "" },
+            { "key": "status", "value": "Pending" },
+            { "key": "page", "value": "1" },
+            { "key": "limit", "value": "10" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "List Job Seekers",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/jobseekers?search=&status=Pending&page=1&limit=10",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "admin", "jobseekers"],
+          "query": [
+            { "key": "search", "value": "" },
+            { "key": "status", "value": "Pending" },
+            { "key": "page", "value": "1" },
+            { "key": "limit", "value": "10" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "List Employers",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/employers?search=&status=Pending&page=1&limit=10",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "admin", "employers"],
+          "query": [
+            { "key": "search", "value": "" },
+            { "key": "status", "value": "Pending" },
+            { "key": "page", "value": "1" },
+            { "key": "limit", "value": "10" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Doctor Detail",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/doctors/:id",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "admin", "doctors", ":id"]
+        }
+      }
+    },
+    {
+      "name": "Hospital Detail",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/hospitals/:id",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "admin", "hospitals", ":id"]
+        }
+      }
+    },
+    {
+      "name": "Pharmacy Detail",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/pharmacies/:id",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "admin", "pharmacies", ":id"]
+        }
+      }
+    },
+    {
+      "name": "Insurance Detail",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/insurance/:id",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "admin", "insurance", ":id"]
+        }
+      }
+    },
+    {
+      "name": "Approve Doctor",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/doctors/:id/approve",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "admin", "doctors", ":id", "approve"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{}"
+        }
+      }
+    },
+    {
+      "name": "Reject Doctor",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/doctors/:id/reject",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "admin", "doctors", ":id", "reject"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"rejectionReason\": \"Document mismatch\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Approve Hospital",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/hospitals/:id/approve",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "admin", "hospitals", ":id", "approve"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{}"
+        }
+      }
+    },
+    {
+      "name": "Reject Hospital",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/hospitals/:id/reject",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "admin", "hospitals", ":id", "reject"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"rejectionReason\": \"License verification failed\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Approve Pharmacy",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/pharmacies/:id/approve",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "admin", "pharmacies", ":id", "approve"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{}"
+        }
+      }
+    },
+    {
+      "name": "Reject Pharmacy",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/pharmacies/:id/reject",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "admin", "pharmacies", ":id", "reject"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"rejectionReason\": \"Drug license missing\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Approve Insurance",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/insurance/:id/approve",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "admin", "insurance", ":id", "approve"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{}"
+        }
+      }
+    },
+    {
+      "name": "Reject Insurance",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/insurance/:id/reject",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "admin", "insurance", ":id", "reject"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"rejectionReason\": \"License number invalid\"\n}"
+        }
+      }
+    }
+  ],
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000" },
+    { "key": "adminToken", "value": "" }
+  ]
+}

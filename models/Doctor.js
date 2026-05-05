@@ -36,11 +36,17 @@ const doctorSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["Pending Approval", "Approved", "Rejected"],
-      default: "Pending Approval",
+      enum: ["Pending", "Approved", "Rejected"],
+      default: "Pending",
     },
+    rejectionReason: { type: String, default: "" },
   },
   { timestamps: true }
 );
+
+doctorSchema.index({ status: 1, createdAt: -1 });
+doctorSchema.index({ fullName: 1 });
+doctorSchema.index({ email: 1 });
+doctorSchema.index({ clinicAddress: 1 });
 
 module.exports = mongoose.model("Doctor", doctorSchema);

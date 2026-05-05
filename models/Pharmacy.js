@@ -14,11 +14,17 @@ const pharmacySchema = new mongoose.Schema(
     drugLicense: { type: String, default: null },
     status: {
       type: String,
-      enum: ["Pending Verification", "Approved", "Rejected"],
-      default: "Pending Verification",
+      enum: ["Pending", "Approved", "Rejected"],
+      default: "Pending",
     },
+    rejectionReason: { type: String, default: "" },
   },
   { timestamps: true }
 );
+
+pharmacySchema.index({ status: 1, createdAt: -1 });
+pharmacySchema.index({ legalPharmacyName: 1 });
+pharmacySchema.index({ email: 1 });
+pharmacySchema.index({ city: 1 });
 
 module.exports = mongoose.model("Pharmacy", pharmacySchema);

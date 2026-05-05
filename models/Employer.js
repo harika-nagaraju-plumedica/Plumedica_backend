@@ -14,4 +14,8 @@ const employerSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+employerSchema.index({ status: 1, createdAt: -1 });
+employerSchema.index({ companyName: 1 });
+employerSchema.index({ email: 1 });
+
 module.exports = mongoose.model("Employer", employerSchema);

@@ -15,6 +15,7 @@ const diagnosticsRoutes = require("./routes/diagnostics/diagnosticsRoutes");
 const partnerRoutes = require("./routes/partner/partnerRoutes");
 const jobSeekerRoutes = require("./routes/jobSeeker/jobSeekerRoutes");
 const employerRoutes = require("./routes/employer/employerRoutes");
+const adminRoutes = require("./routes/adminRoutes");
 
 const app = express();
 
@@ -40,6 +41,7 @@ app.use("/api/partner-organizations", partnerRoutes);
 app.use("/api/job-seekers", jobSeekerRoutes);
 app.use("/api/employers", employerRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/admin", adminRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
