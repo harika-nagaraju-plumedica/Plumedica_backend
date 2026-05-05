@@ -1,4 +1,5 @@
 const bcrypt = require("bcryptjs");
+const mongoose = require("mongoose");
 const asyncHandler = require("../utils/asyncHandler");
 const sendResponse = require("../utils/apiResponse");
 const AppError = require("../utils/AppError");
@@ -61,6 +62,8 @@ const ENTITY_CONFIG = {
 
 const REGULATED_ENTITY_KEYS = ["doctors", "hospitals", "pharmacies", "insurance"];
 const ALLOWED_STATUSES = ["Pending", "Approved", "Rejected"];
+
+const BCRYPT_HASH_REGEX = /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/;
 
 const escapeRegex = (value = "") => {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -127,6 +130,15 @@ const getPagination = (req) => {
   return { page, limit, skip: (page - 1) * limit };
 };
 
+const parseObjectIdParam = (idValue) => {
+  const id = String(idValue || "").trim();
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    throw new AppError("Invalid id format", 400);
+  }
+
+  return id;
+};
+
 const loginAdmin = asyncHandler(async (req, res) => {
   const requiredFields = ["email", "password"];
   const missingFields = validateRequiredFields(req.body, requiredFields);
@@ -143,7 +155,19 @@ const loginAdmin = asyncHandler(async (req, res) => {
     throw new AppError("Invalid email or password", 401);
   }
 
-  const isPasswordValid = await bcrypt.compare(password, admin.password);
+  let isPasswordValid = false;
+  const storedPassword = String(admin.password || "");
+
+  if (BCRYPT_HASH_REGEX.test(storedPassword)) {
+    isPasswordValid = await bcrypt.compare(password, storedPassword);
+  } else if (storedPassword === password) {
+    isPasswordValid = true;
+
+    // Auto-migrate legacy plain-text passwords to bcrypt hash after successful login.
+    admin.password = await bcrypt.hash(password, 10);
+    await admin.save();
+  }
+
   if (!isPasswordValid) {
     throw new AppError("Invalid email or password", 401);
   }
@@ -263,8 +287,9 @@ const listEntities = asyncHandler(async (req, res) => {
 const getEntityDetails = asyncHandler(async (req, res) => {
   const entity = String(req.params.entity || "").toLowerCase();
   const config = getEntityConfig(entity);
+  const id = parseObjectIdParam(req.params.id);
 
-  const record = await config.model.findById(req.params.id).lean();
+  const record = await config.model.findById(id).lean();
   if (!record) {
     throw new AppError("Record not found", 404);
   }
@@ -281,7 +306,8 @@ const approveEntity = asyncHandler(async (req, res) => {
   }
 
   const config = getEntityConfig(entity);
-  const record = await config.model.findById(req.params.id);
+  const id = parseObjectIdParam(req.params.id);
+  const record = await config.model.findById(id);
 
   if (!record) {
     throw new AppError("Record not found", 404);
@@ -308,7 +334,8 @@ const rejectEntity = asyncHandler(async (req, res) => {
   }
 
   const config = getEntityConfig(entity);
-  const record = await config.model.findById(req.params.id);
+  const id = parseObjectIdParam(req.params.id);
+  const record = await config.model.findById(id);
 
   if (!record) {
     throw new AppError("Record not found", 404);

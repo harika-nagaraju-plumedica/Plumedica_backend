@@ -23,6 +23,11 @@ const errorHandler = (err, req, res, next) => {
     message = `${duplicateField || "Unique field"} already exists`;
   }
 
+  if (err.name === "CastError") {
+    statusCode = 400;
+    message = `Invalid ${err.path || "value"} format`;
+  }
+
   if (err instanceof multer.MulterError) {
     statusCode = 400;
     message = err.message;
