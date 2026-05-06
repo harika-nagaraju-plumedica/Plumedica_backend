@@ -230,8 +230,7 @@ resetPassword(module, token, newPassword, confirmPassword):
 
 ## Startup Validation
 - `validateStartupConfig` runs during server startup.
-- Strict mode is enabled by default in production.
-- Strict mode can be controlled with `PASSWORD_RESET_REQUIRE_DELIVERY`.
+- Strict mode is opt-in and controlled with `PASSWORD_RESET_REQUIRE_DELIVERY=true`.
 - Behavior in strict mode:
   - Fails startup if both SMTP and Twilio are missing.
   - Fails startup if a provider is partially configured.

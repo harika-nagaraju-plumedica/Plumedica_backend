@@ -20,10 +20,7 @@ const validateChannel = ({ name, values, requiredKeys }) => {
 };
 
 const validateStartupConfig = () => {
-  const nodeEnv = String(process.env.NODE_ENV || "development").toLowerCase();
-  const strictResetDelivery =
-    String(process.env.PASSWORD_RESET_REQUIRE_DELIVERY || (nodeEnv === "production" ? "true" : "false")).toLowerCase() ===
-    "true";
+  const strictResetDelivery = String(process.env.PASSWORD_RESET_REQUIRE_DELIVERY || "false").toLowerCase() === "true";
 
   if (!strictResetDelivery) {
     return true;

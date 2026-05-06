@@ -23,9 +23,17 @@ test.after(() => {
   process.env = ORIGINAL_ENV;
 });
 
-test("fails in production when no provider is configured", () => {
+test("passes in production when strict mode is not explicitly enabled", () => {
   const { validateStartupConfig } = require("../utils/startupValidation");
   process.env.NODE_ENV = "production";
+
+  assert.equal(validateStartupConfig(), true);
+});
+
+test("fails in production when strict mode is enabled and no provider is configured", () => {
+  const { validateStartupConfig } = require("../utils/startupValidation");
+  process.env.NODE_ENV = "production";
+  process.env.PASSWORD_RESET_REQUIRE_DELIVERY = "true";
 
   assert.throws(() => validateStartupConfig(), {
     message: /no provider is configured/i,
@@ -35,6 +43,7 @@ test("fails in production when no provider is configured", () => {
 test("fails when SMTP config is partial in strict mode", () => {
   const { validateStartupConfig } = require("../utils/startupValidation");
   process.env.NODE_ENV = "production";
+  process.env.PASSWORD_RESET_REQUIRE_DELIVERY = "true";
   process.env.SMTP_HOST = "smtp.example.com";
 
   assert.throws(() => validateStartupConfig(), {
@@ -45,6 +54,7 @@ test("fails when SMTP config is partial in strict mode", () => {
 test("passes when SMTP config is complete in strict mode", () => {
   const { validateStartupConfig } = require("../utils/startupValidation");
   process.env.NODE_ENV = "production";
+  process.env.PASSWORD_RESET_REQUIRE_DELIVERY = "true";
   process.env.SMTP_HOST = "smtp.example.com";
   process.env.SMTP_PORT = "587";
   process.env.SMTP_USER = "user";
