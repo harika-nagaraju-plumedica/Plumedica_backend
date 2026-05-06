@@ -57,6 +57,7 @@ const registerHospital = asyncHandler(async (req, res) => {
     id: hospital._id,
     role: "hospital",
     email: hospital.email,
+    tokenVersion: Number(hospital.tokenVersion || 0),
   });
 
   return sendResponse(res, 201, true, "Hospital registered successfully", {

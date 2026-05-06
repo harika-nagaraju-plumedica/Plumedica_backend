@@ -5,6 +5,7 @@ const pharmacySchema = new mongoose.Schema(
     legalPharmacyName: { type: String, required: true, trim: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     password: { type: String, required: true, minlength: 6 },
+    tokenVersion: { type: Number, default: 0 },
     state: { type: String, required: true, trim: true },
     city: { type: String, required: true, trim: true },
     phoneNumber: { type: String, required: true, trim: true },

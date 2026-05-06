@@ -45,6 +45,7 @@ const registerUser = asyncHandler(async (req, res) => {
     id: user._id,
     role: "user",
     email: user.email,
+    tokenVersion: Number(user.tokenVersion || 0),
   });
 
   return sendResponse(res, 201, true, "User registered successfully", {
@@ -122,6 +123,7 @@ const loginUser = asyncHandler(async (req, res) => {
     id: authenticated.profile._id,
     role: authenticated.role,
     email: authenticated.profile.email,
+    tokenVersion: Number(authenticated.profile.tokenVersion || 0),
   });
 
   return sendResponse(res, 200, true, "Login successful", {

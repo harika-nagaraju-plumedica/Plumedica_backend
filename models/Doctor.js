@@ -19,6 +19,7 @@ const doctorSchema = new mongoose.Schema(
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     mobileNumber: { type: String, required: true, trim: true },
     password: { type: String, required: true, minlength: 6 },
+    tokenVersion: { type: Number, default: 0 },
     qualification: { type: String, required: true, trim: true },
     specialization: { type: String, trim: true },
     yearOfGraduation: { type: Number, required: true },

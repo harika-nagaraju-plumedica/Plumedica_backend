@@ -36,6 +36,7 @@ const registerJobSeeker = asyncHandler(async (req, res) => {
     id: jobSeeker._id,
     role: "job-seeker",
     email: jobSeeker.email,
+    tokenVersion: Number(jobSeeker.tokenVersion || 0),
   });
 
   return sendResponse(res, 201, true, "Job seeker registered successfully", {

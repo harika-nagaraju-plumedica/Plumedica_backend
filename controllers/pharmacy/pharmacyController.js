@@ -54,6 +54,7 @@ const registerPharmacy = asyncHandler(async (req, res) => {
     id: pharmacy._id,
     role: "pharmacy",
     email: pharmacy.email,
+    tokenVersion: Number(pharmacy.tokenVersion || 0),
   });
 
   return sendResponse(res, 201, true, "Pharmacy registered successfully", {

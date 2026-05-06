@@ -36,6 +36,7 @@ const registerPatient = asyncHandler(async (req, res) => {
     id: patient._id,
     role: "patient",
     email: patient.email,
+    tokenVersion: Number(patient.tokenVersion || 0),
   });
 
   return sendResponse(res, 201, true, "Patient registered successfully", {

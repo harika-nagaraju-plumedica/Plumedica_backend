@@ -176,6 +176,7 @@ const loginAdmin = asyncHandler(async (req, res) => {
     id: admin._id,
     role: admin.role,
     email: admin.email,
+    tokenVersion: Number(admin.tokenVersion || 0),
   });
 
   const profile = admin.toObject();
@@ -307,15 +308,20 @@ const approveEntity = asyncHandler(async (req, res) => {
 
   const config = getEntityConfig(entity);
   const id = parseObjectIdParam(req.params.id);
-  const record = await config.model.findById(id);
+  const record = await config.model.findByIdAndUpdate(
+    id,
+    {
+      $set: {
+        status: "Approved",
+        rejectionReason: "",
+      },
+    },
+    { new: true }
+  );
 
   if (!record) {
     throw new AppError("Record not found", 404);
   }
-
-  record.status = "Approved";
-  record.rejectionReason = "";
-  await record.save();
 
   return sendResponse(res, 200, true, "Entity approved successfully", {
     item: sanitizeDoc(record),
@@ -335,15 +341,20 @@ const rejectEntity = asyncHandler(async (req, res) => {
 
   const config = getEntityConfig(entity);
   const id = parseObjectIdParam(req.params.id);
-  const record = await config.model.findById(id);
+  const record = await config.model.findByIdAndUpdate(
+    id,
+    {
+      $set: {
+        status: "Rejected",
+        rejectionReason,
+      },
+    },
+    { new: true }
+  );
 
   if (!record) {
     throw new AppError("Record not found", 404);
   }
-
-  record.status = "Rejected";
-  record.rejectionReason = rejectionReason;
-  await record.save();
 
   return sendResponse(res, 200, true, "Entity rejected successfully", {
     item: sanitizeDoc(record),

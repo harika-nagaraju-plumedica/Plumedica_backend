@@ -7,12 +7,17 @@ const {
   approveEntity,
   rejectEntity,
 } = require("../controllers/adminController");
+const { buildPasswordResetController } = require("../controllers/auth/passwordResetController");
+const forgotPasswordRateLimitValidation = require("../middleware/forgotPasswordRateLimit");
 const auth = require("../middleware/auth");
 const adminOnly = require("../middleware/admin");
 
 const router = express.Router();
+const adminPasswordResetController = buildPasswordResetController("admin");
 
 router.post("/login", loginAdmin);
+router.post("/forgot-password", forgotPasswordRateLimitValidation, adminPasswordResetController.forgotPassword);
+router.post("/reset-password", adminPasswordResetController.resetPassword);
 
 router.use(auth, adminOnly);
 

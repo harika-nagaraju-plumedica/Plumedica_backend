@@ -36,6 +36,7 @@ const registerPartnerOrganization = asyncHandler(async (req, res) => {
     id: partnerOrganization._id,
     role: "partner-organization",
     email: partnerOrganization.email,
+    tokenVersion: Number(partnerOrganization.tokenVersion || 0),
   });
 
   return sendResponse(res, 201, true, "Partner organization registered successfully", {

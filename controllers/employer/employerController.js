@@ -36,6 +36,7 @@ const registerEmployer = asyncHandler(async (req, res) => {
     id: employer._id,
     role: "employer",
     email: employer.email,
+    tokenVersion: Number(employer.tokenVersion || 0),
   });
 
   return sendResponse(res, 201, true, "Employer registered successfully", {

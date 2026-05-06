@@ -5,6 +5,7 @@ require("dotenv").config();
 
 const connectDB = require("./config/db");
 const { notFound, errorHandler } = require("./middleware/errorHandler");
+const { validateStartupConfig } = require("./utils/startupValidation");
 const authRoutes = require("./routes/auth");
 
 const doctorRoutes = require("./routes/doctor/doctorRoutes");
@@ -50,6 +51,7 @@ const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
   try {
+    validateStartupConfig();
     await connectDB();
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
