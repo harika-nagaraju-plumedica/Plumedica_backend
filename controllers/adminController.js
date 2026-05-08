@@ -120,6 +120,9 @@ const buildSearchQuery = (searchValue, fields) => {
 
 const sanitizeDoc = (doc) => {
   const entity = doc && typeof doc.toObject === "function" ? doc.toObject() : { ...doc };
+  if (entity && entity._id && !entity.id) {
+    entity.id = String(entity._id);
+  }
   delete entity.password;
   return entity;
 };
@@ -132,11 +135,19 @@ const getPagination = (req) => {
 
 const parseObjectIdParam = (idValue) => {
   const id = String(idValue || "").trim();
+  if (!id || id.toLowerCase() === "undefined" || id.toLowerCase() === "null") {
+    throw new AppError("id is required", 400);
+  }
+
   if (!mongoose.Types.ObjectId.isValid(id)) {
     throw new AppError("Invalid id format", 400);
   }
 
   return id;
+};
+
+const resolveEntityId = (req) => {
+  return req.params.id || req.body.id || req.body._id || req.query.id || req.query._id;
 };
 
 const loginAdmin = asyncHandler(async (req, res) => {
@@ -288,7 +299,7 @@ const listEntities = asyncHandler(async (req, res) => {
 const getEntityDetails = asyncHandler(async (req, res) => {
   const entity = String(req.params.entity || "").toLowerCase();
   const config = getEntityConfig(entity);
-  const id = parseObjectIdParam(req.params.id);
+  const id = parseObjectIdParam(resolveEntityId(req));
 
   const record = await config.model.findById(id).lean();
   if (!record) {
@@ -307,7 +318,7 @@ const approveEntity = asyncHandler(async (req, res) => {
   }
 
   const config = getEntityConfig(entity);
-  const id = parseObjectIdParam(req.params.id);
+  const id = parseObjectIdParam(resolveEntityId(req));
   const record = await config.model.findByIdAndUpdate(
     id,
     {
@@ -340,7 +351,7 @@ const rejectEntity = asyncHandler(async (req, res) => {
   }
 
   const config = getEntityConfig(entity);
-  const id = parseObjectIdParam(req.params.id);
+  const id = parseObjectIdParam(resolveEntityId(req));
   const record = await config.model.findByIdAndUpdate(
     id,
     {

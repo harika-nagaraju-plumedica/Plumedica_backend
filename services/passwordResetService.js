@@ -28,6 +28,17 @@ const EXPOSE_RESET_TOKEN_IN_FORGOT_PASSWORD_RESPONSE =
     (process.env.NODE_ENV === "production" ? "false" : "true")
   ).toLowerCase() === "true";
 
+const buildForgotPasswordDebugData = (tokenGenerated, reason) => {
+  if (!EXPOSE_RESET_TOKEN_IN_FORGOT_PASSWORD_RESPONSE) {
+    return {};
+  }
+
+  return {
+    tokenGenerated,
+    reason,
+  };
+};
+
 const GENERIC_FORGOT_RESPONSE = "If the account exists, reset instructions have been sent";
 
 const resolveModuleForForgotPassword = async ({ moduleKey, authRole, identifierCanonical, identifierIsEmail }) => {
@@ -143,7 +154,7 @@ const forgotPassword = async ({ moduleKey, authRole, identifier, ipAddress }) =>
   if (!normalizedModule || !moduleConfig) {
     return {
       message: GENERIC_FORGOT_RESPONSE,
-      data: {},
+      data: buildForgotPasswordDebugData(false, "MODULE_NOT_RESOLVED"),
     };
   }
 
@@ -185,7 +196,7 @@ const forgotPassword = async ({ moduleKey, authRole, identifier, ipAddress }) =>
           resetToken: resetTokenForResponse,
           expiresInMinutes: RESET_TOKEN_TTL_MINUTES,
         }
-        : {},
+        : buildForgotPasswordDebugData(false, "ACCOUNT_NOT_FOUND"),
   };
 };
 
