@@ -14,23 +14,13 @@
   - `models/PasswordResetToken.js`
   - `models/PasswordResetRequestLog.js`
 
-## Route Table Per Module
-All modules expose:
-- `POST /<module-base>/forgot-password`
-- `POST /<module-base>/reset-password`
+## Unified Route Table
+All modules now use the same auth routes:
+- `POST /api/auth/forgot-password`
+- `POST /api/auth/reset-password`
+- `POST /api/auth/reset-password/:token`
 
-| Module | Forgot Password URL | Reset Password URL | Purpose |
-|---|---|---|---|
-| Admin | `/api/admin/forgot-password` | `/api/admin/reset-password` | Admin password recovery |
-| User | `/api/auth/forgot-password` | `/api/auth/reset-password` | User password recovery |
-| Doctor | `/api/doctors/forgot-password` | `/api/doctors/reset-password` | Doctor password recovery |
-| Pharmacy | `/api/pharmacies/forgot-password` | `/api/pharmacies/reset-password` | Pharmacy password recovery |
-| Patient | `/api/patients/forgot-password` | `/api/patients/reset-password` | Patient password recovery |
-| Hospital | `/api/hospitals/forgot-password` | `/api/hospitals/reset-password` | Hospital password recovery |
-| Diagnostics Center | `/api/diagnostics-centers/forgot-password` | `/api/diagnostics-centers/reset-password` | Diagnostics center password recovery |
-| Partner Organization | `/api/partner-organizations/forgot-password` | `/api/partner-organizations/reset-password` | Partner organization password recovery |
-| Job Seeker | `/api/job-seekers/forgot-password` | `/api/job-seekers/reset-password` | Job seeker password recovery |
-| Employer | `/api/employers/forgot-password` | `/api/employers/reset-password` | Employer password recovery |
+Use `module` in request body to target the account type (`admin`, `user`, `doctor`, `pharmacy`, `patient`, `hospital`, `diagnostics-center`, `partner-organization`, `job-seeker`, `employer`).
 
 ## Request/Response DTOs
 ### Forgot Password Request
@@ -51,6 +41,15 @@ All modules expose:
 ```
 
 ### Reset Password Request
+Token can be provided using one of these sources (in priority order):
+- URL param: `POST /api/auth/reset-password/:token`
+- Query param: `POST /api/auth/reset-password?token=<token>`
+- Header: `x-reset-token: <token>`
+- Authorization header: `Bearer <token>`
+- Request body: `token` (backward compatibility)
+
+You can now omit `token` from request body when using param/query/header.
+
 ```json
 {
   "token": "98f66b205c26cf95a4630f7661c4a2d322ea36781dc1168be6f7f15e2e8af6a7",

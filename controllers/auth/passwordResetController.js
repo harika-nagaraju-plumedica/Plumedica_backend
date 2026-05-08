@@ -12,6 +12,30 @@ const getBearerToken = (authorizationHeader = "") => {
   return token;
 };
 
+const extractResetToken = (req) => {
+  const fromParam = String(req.params?.token || "").trim();
+  if (fromParam) {
+    return fromParam;
+  }
+
+  const fromQuery = String(req.query?.token || "").trim();
+  if (fromQuery) {
+    return fromQuery;
+  }
+
+  const fromHeader = String(req.headers["x-reset-token"] || "").trim();
+  if (fromHeader) {
+    return fromHeader;
+  }
+
+  const fromAuthBearer = getBearerToken(req.headers.authorization || "");
+  if (fromAuthBearer) {
+    return fromAuthBearer;
+  }
+
+  return String(req.body?.token || "").trim();
+};
+
 const getOptionalAuthRole = (req) => {
   const token = getBearerToken(req.headers.authorization || "");
   if (!token) {
@@ -42,7 +66,7 @@ const buildPasswordResetController = (moduleKey) => {
     const result = await passwordResetService.resetPassword({
       moduleKey,
       authRole: getOptionalAuthRole(req),
-      token: req.body.token,
+      token: extractResetToken(req),
       newPassword: req.body.newPassword,
       confirmPassword: req.body.confirmPassword,
     });
@@ -72,7 +96,7 @@ const unifiedPasswordResetController = {
     const result = await passwordResetService.resetPassword({
       moduleKey: req.body.module,
       authRole: getOptionalAuthRole(req),
-      token: req.body.token,
+      token: extractResetToken(req),
       newPassword: req.body.newPassword,
       confirmPassword: req.body.confirmPassword,
     });
