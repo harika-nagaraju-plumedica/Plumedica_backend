@@ -9,7 +9,14 @@ const {
   isValidResetTokenFormat,
 } = require("../utils/passwordResetValidation");
 const { generateRawResetToken, hashSensitiveValue } = require("../utils/passwordResetSecurity");
-const { getModuleConfig, normalizeModuleKey, findByIdentifier, parseObjectId } = require("../utils/passwordResetModules");
+const {
+  getModuleConfig,
+  normalizeModuleKey,
+  findByIdentifier,
+  findMatchesByIdentifier,
+  getModuleKeyByRole,
+  parseObjectId,
+} = require("../utils/passwordResetModules");
 const { sendEmailResetInstructions, sendSmsResetInstructions } = require("../utils/passwordResetNotifier");
 
 const RESET_TOKEN_TTL_MINUTES = Math.max(parseInt(process.env.PASSWORD_RESET_TOKEN_TTL_MINUTES, 10) || 15, 5);
@@ -17,6 +24,37 @@ const RESET_RATE_LIMIT_WINDOW_MINUTES = Math.max(parseInt(process.env.FORGOT_PAS
 const RESET_RATE_LIMIT_MAX_ATTEMPTS = Math.max(parseInt(process.env.FORGOT_PASSWORD_MAX_ATTEMPTS, 10) || 5, 1);
 
 const GENERIC_FORGOT_RESPONSE = "If the account exists, reset instructions have been sent";
+
+const resolveModuleForForgotPassword = async ({ moduleKey, authRole, identifierCanonical, identifierIsEmail }) => {
+  const explicitModule = normalizeModuleKey(moduleKey);
+  if (moduleKey && !explicitModule) {
+    throw new AppError("Invalid module value", 400, "INVALID_MODULE");
+  }
+
+  if (explicitModule) {
+    return explicitModule;
+  }
+
+  const matches = await findMatchesByIdentifier(identifierCanonical, identifierIsEmail);
+  if (matches.length === 1) {
+    return matches[0].moduleKey;
+  }
+
+  if (matches.length > 1) {
+    throw new AppError(
+      "Multiple accounts found for this identifier. Please provide module in request body.",
+      409,
+      "MULTIPLE_MATCHING_MODULES"
+    );
+  }
+
+  const jwtModule = getModuleKeyByRole(authRole);
+  if (jwtModule) {
+    return jwtModule;
+  }
+
+  return null;
+};
 
 const sendResetInstructions = async ({ moduleKey, identifier, token, expiresInMinutes }) => {
   const isEmail = isValidEmail(identifier);
@@ -45,13 +83,7 @@ const sendResetInstructions = async ({ moduleKey, identifier, token, expiresInMi
   return result;
 };
 
-const forgotPassword = async ({ moduleKey, identifier, ipAddress }) => {
-  const normalizedModule = normalizeModuleKey(moduleKey);
-  const moduleConfig = getModuleConfig(normalizedModule);
-
-  if (!moduleConfig) {
-    throw new AppError("Invalid module value", 400, "INVALID_MODULE");
-  }
+const forgotPassword = async ({ moduleKey, authRole, identifier, ipAddress }) => {
 
   const normalizedIdentifier = normalizeIdentifier(identifier);
   if (!normalizedIdentifier) {
@@ -69,13 +101,23 @@ const forgotPassword = async ({ moduleKey, identifier, ipAddress }) => {
     ? normalizedIdentifier.toLowerCase()
     : normalizedIdentifier;
 
+  const normalizedModule = await resolveModuleForForgotPassword({
+    moduleKey,
+    authRole,
+    identifierCanonical,
+    identifierIsEmail,
+  });
+
+  const moduleConfig = normalizedModule ? getModuleConfig(normalizedModule) : null;
+
   const identifierHash = hashSensitiveValue(identifierCanonical);
   const ipHash = hashSensitiveValue(String(ipAddress || "unknown"));
   const now = new Date();
   const windowStart = new Date(now.getTime() - RESET_RATE_LIMIT_WINDOW_MINUTES * 60 * 1000);
+  const rateLimitModuleKey = normalizedModule || "global";
 
   const requestCount = await passwordResetRepository.countForgotPasswordRequests({
-    moduleKey: normalizedModule,
+    moduleKey: rateLimitModuleKey,
     identifierHash,
     ipHash,
     since: windowStart,
@@ -87,11 +129,17 @@ const forgotPassword = async ({ moduleKey, identifier, ipAddress }) => {
 
   const requestExpiresAt = new Date(now.getTime() + RESET_RATE_LIMIT_WINDOW_MINUTES * 60 * 1000);
   await passwordResetRepository.recordForgotPasswordRequest({
-    moduleKey: normalizedModule,
+    moduleKey: rateLimitModuleKey,
     identifierHash,
     ipHash,
     expiresAt: requestExpiresAt,
   });
+
+  if (!normalizedModule || !moduleConfig) {
+    return {
+      message: GENERIC_FORGOT_RESPONSE,
+    };
+  }
 
   const user = await findByIdentifier(normalizedModule, identifierCanonical, identifierIsEmail);
 
@@ -126,11 +174,9 @@ const forgotPassword = async ({ moduleKey, identifier, ipAddress }) => {
   };
 };
 
-const resetPassword = async ({ moduleKey, token, newPassword, confirmPassword }) => {
+const resetPassword = async ({ moduleKey, authRole, token, newPassword, confirmPassword }) => {
   const normalizedModule = normalizeModuleKey(moduleKey);
-  const moduleConfig = getModuleConfig(normalizedModule);
-
-  if (!moduleConfig) {
+  if (moduleKey && !normalizedModule) {
     throw new AppError("Invalid module value", 400, "INVALID_MODULE");
   }
 
@@ -149,13 +195,35 @@ const resetPassword = async ({ moduleKey, token, newPassword, confirmPassword })
   }
 
   const tokenHash = hashSensitiveValue(normalizedToken);
-  const storedToken = await passwordResetRepository.findActiveTokenByHash({
-    moduleKey: normalizedModule,
-    tokenHash,
-  });
+  let storedToken = null;
+
+  if (normalizedModule) {
+    storedToken = await passwordResetRepository.findActiveTokenByHash({
+      moduleKey: normalizedModule,
+      tokenHash,
+    });
+  } else {
+    const jwtModule = getModuleKeyByRole(authRole);
+
+    if (jwtModule) {
+      storedToken = await passwordResetRepository.findActiveTokenByHash({
+        moduleKey: jwtModule,
+        tokenHash,
+      });
+    }
+
+    if (!storedToken) {
+      storedToken = await passwordResetRepository.findActiveTokenByHashAnyModule({ tokenHash });
+    }
+  }
 
   if (!storedToken) {
     throw new AppError("Invalid or already used reset token", 400, "INVALID_OR_USED_RESET_TOKEN");
+  }
+
+  const moduleConfig = getModuleConfig(storedToken.moduleKey);
+  if (!moduleConfig) {
+    throw new AppError("Invalid module value", 400, "INVALID_MODULE");
   }
 
   if (storedToken.expiresAt.getTime() < Date.now()) {
@@ -174,7 +242,7 @@ const resetPassword = async ({ moduleKey, token, newPassword, confirmPassword })
 
   await passwordResetRepository.markTokenUsed(storedToken._id);
   await passwordResetRepository.deleteActiveTokensForUser({
-    moduleKey: normalizedModule,
+    moduleKey: storedToken.moduleKey,
     userId: user._id,
   });
 

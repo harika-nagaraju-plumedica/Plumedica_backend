@@ -11,6 +11,13 @@ const findActiveTokenByHash = async ({ moduleKey, tokenHash }) => {
   });
 };
 
+const findActiveTokenByHashAnyModule = async ({ tokenHash }) => {
+  return PasswordResetToken.findOne({
+    tokenHash,
+    usedAt: null,
+  });
+};
+
 const markTokenUsed = async (tokenId) => {
   return PasswordResetToken.findByIdAndUpdate(tokenId, { usedAt: new Date() }, { new: true });
 };
@@ -39,6 +46,7 @@ const countForgotPasswordRequests = async ({ moduleKey, identifierHash, ipHash, 
 module.exports = {
   createResetToken,
   findActiveTokenByHash,
+  findActiveTokenByHashAnyModule,
   markTokenUsed,
   deleteActiveTokensForUser,
   recordForgotPasswordRequest,

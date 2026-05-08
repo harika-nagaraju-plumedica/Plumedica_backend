@@ -110,6 +110,12 @@ const getModelByRole = (role = "") => {
   return Object.values(PASSWORD_RESET_MODULES).find((moduleConfig) => moduleConfig.role === normalizedRole)?.model || null;
 };
 
+const getModuleKeyByRole = (role = "") => {
+  const normalizedRole = String(role).trim().toLowerCase();
+  const entry = Object.entries(PASSWORD_RESET_MODULES).find(([, moduleConfig]) => moduleConfig.role === normalizedRole);
+  return entry ? entry[0] : null;
+};
+
 const findByIdentifier = async (moduleKey, identifier, isEmail) => {
   const moduleConfig = getModuleConfig(moduleKey);
   if (!moduleConfig) {
@@ -136,6 +142,41 @@ const findByIdentifier = async (moduleKey, identifier, isEmail) => {
   return model.findOne(query);
 };
 
+const findMatchesByIdentifier = async (identifier, isEmail) => {
+  const normalizedIdentifier = String(identifier || "").trim();
+  if (!normalizedIdentifier) {
+    return [];
+  }
+
+  const moduleEntries = Object.entries(PASSWORD_RESET_MODULES);
+
+  const matches = await Promise.all(
+    moduleEntries.map(async ([moduleKey, moduleConfig]) => {
+      const { model, emailField, phoneFields } = moduleConfig;
+
+      if (isEmail) {
+        const profile = await model.findOne({ [emailField]: normalizedIdentifier.toLowerCase() });
+        return profile ? { moduleKey, moduleConfig, profile } : null;
+      }
+
+      if (!phoneFields.length) {
+        return null;
+      }
+
+      const query = {
+        $or: phoneFields.map((phoneField) => ({
+          [phoneField]: normalizedIdentifier,
+        })),
+      };
+
+      const profile = await model.findOne(query);
+      return profile ? { moduleKey, moduleConfig, profile } : null;
+    })
+  );
+
+  return matches.filter(Boolean);
+};
+
 const parseObjectId = (value = "") => {
   if (!mongoose.Types.ObjectId.isValid(String(value))) {
     return null;
@@ -150,6 +191,8 @@ module.exports = {
   normalizeModuleKey,
   getModuleConfig,
   getModelByRole,
+  getModuleKeyByRole,
   findByIdentifier,
+  findMatchesByIdentifier,
   parseObjectId,
 };
