@@ -33,7 +33,7 @@ const extractResetToken = (req) => {
     return fromAuthBearer;
   }
 
-  return String(req.body?.token || "").trim();
+  return String(req.body?.token || req.body?.resetToken || "").trim();
 };
 
 const getOptionalAuthRole = (req) => {
@@ -59,7 +59,7 @@ const buildPasswordResetController = (moduleKey) => {
       ipAddress: req.ip || req.headers["x-forwarded-for"] || req.socket?.remoteAddress,
     });
 
-    return sendResponse(res, 200, true, result.message, {}, null);
+    return sendResponse(res, 200, true, result.message, result.data || {}, null);
   });
 
   const resetPassword = asyncHandler(async (req, res) => {
@@ -89,7 +89,7 @@ const unifiedPasswordResetController = {
       ipAddress: req.ip || req.headers["x-forwarded-for"] || req.socket?.remoteAddress,
     });
 
-    return sendResponse(res, 200, true, result.message, {}, null);
+    return sendResponse(res, 200, true, result.message, result.data || {}, null);
   }),
 
   resetPassword: asyncHandler(async (req, res) => {

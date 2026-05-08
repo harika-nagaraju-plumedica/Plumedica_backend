@@ -22,6 +22,11 @@ const { sendEmailResetInstructions, sendSmsResetInstructions } = require("../uti
 const RESET_TOKEN_TTL_MINUTES = Math.max(parseInt(process.env.PASSWORD_RESET_TOKEN_TTL_MINUTES, 10) || 15, 5);
 const RESET_RATE_LIMIT_WINDOW_MINUTES = Math.max(parseInt(process.env.FORGOT_PASSWORD_WINDOW_MINUTES, 10) || 15, 1);
 const RESET_RATE_LIMIT_MAX_ATTEMPTS = Math.max(parseInt(process.env.FORGOT_PASSWORD_MAX_ATTEMPTS, 10) || 5, 1);
+const EXPOSE_RESET_TOKEN_IN_FORGOT_PASSWORD_RESPONSE =
+  String(
+    process.env.PASSWORD_RESET_EXPOSE_TOKEN ||
+    (process.env.NODE_ENV === "production" ? "false" : "true")
+  ).toLowerCase() === "true";
 
 const GENERIC_FORGOT_RESPONSE = "If the account exists, reset instructions have been sent";
 
@@ -138,10 +143,12 @@ const forgotPassword = async ({ moduleKey, authRole, identifier, ipAddress }) =>
   if (!normalizedModule || !moduleConfig) {
     return {
       message: GENERIC_FORGOT_RESPONSE,
+      data: {},
     };
   }
 
   const user = await findByIdentifier(normalizedModule, identifierCanonical, identifierIsEmail);
+  let resetTokenForResponse = null;
 
   if (user) {
     await passwordResetRepository.deleteActiveTokensForUser({
@@ -150,6 +157,7 @@ const forgotPassword = async ({ moduleKey, authRole, identifier, ipAddress }) =>
     });
 
     const rawToken = generateRawResetToken();
+    resetTokenForResponse = rawToken;
     const tokenHash = hashSensitiveValue(rawToken);
     const tokenExpiresAt = new Date(now.getTime() + RESET_TOKEN_TTL_MINUTES * 60 * 1000);
 
@@ -171,6 +179,13 @@ const forgotPassword = async ({ moduleKey, authRole, identifier, ipAddress }) =>
 
   return {
     message: GENERIC_FORGOT_RESPONSE,
+    data:
+      EXPOSE_RESET_TOKEN_IN_FORGOT_PASSWORD_RESPONSE && resetTokenForResponse
+        ? {
+          resetToken: resetTokenForResponse,
+          expiresInMinutes: RESET_TOKEN_TTL_MINUTES,
+        }
+        : {},
   };
 };
 
@@ -181,6 +196,14 @@ const resetPassword = async ({ moduleKey, authRole, token, newPassword, confirmP
   }
 
   const normalizedToken = String(token || "").trim().toLowerCase();
+  if (!normalizedToken) {
+    throw new AppError(
+      "Reset token is required. Provide it via URL (/api/auth/reset-password/:token), query (?token=), x-reset-token header, Authorization Bearer token, or body token.",
+      400,
+      "MISSING_RESET_TOKEN"
+    );
+  }
+
   if (!isValidResetTokenFormat(normalizedToken)) {
     throw new AppError("Invalid reset token format", 400, "INVALID_RESET_TOKEN_FORMAT");
   }
