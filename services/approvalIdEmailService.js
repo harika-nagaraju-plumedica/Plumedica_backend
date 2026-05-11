@@ -1,14 +1,22 @@
 const nodemailer = require("nodemailer");
 
 let cachedTransporter = null;
+const DEFAULT_APPROVAL_FROM_EMAIL = "harika.nagaraju@plumedica.com";
+
+const getFromAddress = () => {
+  const fromEmail = String(
+    process.env.APPROVAL_FROM_EMAIL || process.env.SMTP_FROM || DEFAULT_APPROVAL_FROM_EMAIL
+  ).trim();
+  const fromName = String(process.env.APP_NAME || "PluMedica").trim();
+  return `${fromName} <${fromEmail}>`;
+};
 
 const isSmtpConfigured = () => {
   return Boolean(
     process.env.SMTP_HOST &&
       process.env.SMTP_PORT &&
       process.env.SMTP_USER &&
-      process.env.SMTP_PASS &&
-      process.env.SMTP_FROM
+      process.env.SMTP_PASS
   );
 };
 
@@ -75,7 +83,7 @@ const sendApprovalIdEmail = async ({ to, recipientName, role, generatedId }) => 
   }
 
   await transporter.sendMail({
-    from: process.env.SMTP_FROM,
+    from: getFromAddress(),
     to: safeTo,
     subject,
     text,

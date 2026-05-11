@@ -2,15 +2,43 @@ const nodemailer = require("nodemailer");
 const EntityStatusEmailLog = require("../models/EntityStatusEmailLog");
 
 let cachedTransporter = null;
+const DEFAULT_APPROVAL_FROM_EMAIL = "harika.nagaraju@plumedica.com";
+
+const getFromAddress = () => {
+  const fromEmail = String(
+    process.env.APPROVAL_FROM_EMAIL || process.env.SMTP_FROM || DEFAULT_APPROVAL_FROM_EMAIL
+  ).trim();
+  const fromName = String(process.env.APP_NAME || "PluMedica").trim();
+  return `${fromName} <${fromEmail}>`;
+};
 
 const isSmtpConfigured = () => {
   return Boolean(
     process.env.SMTP_HOST &&
       process.env.SMTP_PORT &&
       process.env.SMTP_USER &&
-      process.env.SMTP_PASS &&
-      process.env.SMTP_FROM
+      process.env.SMTP_PASS
   );
+};
+
+const getSmtpConfigSummary = () => {
+  return {
+    host: String(process.env.SMTP_HOST || "").trim(),
+    port: Number(process.env.SMTP_PORT || 0),
+    secure: String(process.env.SMTP_SECURE || "false") === "true",
+    hasUser: Boolean(String(process.env.SMTP_USER || "").trim()),
+    hasPass: Boolean(String(process.env.SMTP_PASS || "").trim()),
+    from: getFromAddress(),
+  };
+};
+
+const sanitizeEmailError = (error) => {
+  return {
+    code: String(error?.code || "UNKNOWN_ERROR"),
+    responseCode: Number(error?.responseCode || 0) || null,
+    command: String(error?.command || ""),
+    message: String(error?.message || "Unknown email delivery error"),
+  };
 };
 
 const getTransporter = () => {
@@ -143,7 +171,7 @@ const sendEntityStatusNotification = async ({
   for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
     try {
       await transporter.sendMail({
-        from: process.env.SMTP_FROM,
+        from: getFromAddress(),
         to,
         subject,
         text,
@@ -180,6 +208,84 @@ const sendEntityStatusNotification = async ({
   throw lastError;
 };
 
+const debugEntityStatusEmailDelivery = async ({ to } = {}) => {
+  const diagnostics = {
+    smtpConfigured: isSmtpConfigured(),
+    config: getSmtpConfigSummary(),
+  };
+
+  if (!diagnostics.smtpConfigured) {
+    return {
+      ok: false,
+      stage: "configuration",
+      diagnostics,
+      error: {
+        code: "SMTP_NOT_CONFIGURED",
+        responseCode: null,
+        command: "",
+        message: "SMTP environment variables are incomplete.",
+      },
+    };
+  }
+
+  const transporter = getTransporter();
+  try {
+    await transporter.verify();
+  } catch (error) {
+    return {
+      ok: false,
+      stage: "verify",
+      diagnostics,
+      error: sanitizeEmailError(error),
+    };
+  }
+
+  const safeTo = String(to || "").trim();
+  if (!safeTo) {
+    return {
+      ok: true,
+      stage: "verify",
+      diagnostics,
+      message: "SMTP connection verified successfully. Provide a recipient to send a test email.",
+    };
+  }
+
+  const subject = "PluMedica Email Delivery Test";
+  const text = [
+    "Hello,",
+    "",
+    "This is a test email from PluMedica admin diagnostics.",
+    "If you received this, SMTP delivery is working.",
+  ].join("\n");
+
+  try {
+    const info = await transporter.sendMail({
+      from: getFromAddress(),
+      to: safeTo,
+      subject,
+      text,
+    });
+
+    return {
+      ok: true,
+      stage: "send",
+      diagnostics,
+      messageId: String(info?.messageId || ""),
+      accepted: Array.isArray(info?.accepted) ? info.accepted : [],
+      rejected: Array.isArray(info?.rejected) ? info.rejected : [],
+      response: String(info?.response || ""),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      stage: "send",
+      diagnostics,
+      error: sanitizeEmailError(error),
+    };
+  }
+};
+
 module.exports = {
   sendEntityStatusNotification,
+  debugEntityStatusEmailDelivery,
 };

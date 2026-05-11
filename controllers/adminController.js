@@ -5,7 +5,10 @@ const sendResponse = require("../utils/apiResponse");
 const AppError = require("../utils/AppError");
 const { generateToken } = require("../utils/token");
 const { validateRequiredFields } = require("../utils/validation");
-const { sendEntityStatusNotification } = require("../services/entityStatusNotificationService");
+const {
+  sendEntityStatusNotification,
+  debugEntityStatusEmailDelivery,
+} = require("../services/entityStatusNotificationService");
 const {
   generatePatientId,
   generateDoctorId,
@@ -605,6 +608,23 @@ const approveUserById = asyncHandler(async (req, res) => {
   });
 });
 
+const debugEmailDelivery = asyncHandler(async (req, res) => {
+  const body = req.body && typeof req.body === "object" ? req.body : {};
+  const to = String(body.to || "").trim();
+  const result = await debugEntityStatusEmailDelivery({ to });
+
+  return sendResponse(
+    res,
+    200,
+    result.ok,
+    result.ok ? "Email diagnostics completed" : "Email diagnostics failed",
+    {
+      diagnostics: result,
+    },
+    result.ok ? null : "EMAIL_DIAGNOSTICS_FAILED"
+  );
+});
+
 module.exports = {
   loginAdmin,
   getDashboard,
@@ -613,4 +633,5 @@ module.exports = {
   approveEntity,
   rejectEntity,
   approveUserById,
+  debugEmailDelivery,
 };
