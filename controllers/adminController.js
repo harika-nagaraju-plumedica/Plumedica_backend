@@ -208,7 +208,10 @@ const parseObjectIdParam = (idValue) => {
 };
 
 const resolveEntityId = (req) => {
-  const candidates = [req.params.id, req.body.id, req.body._id, req.query.id, req.query._id]
+  const body = req.body && typeof req.body === "object" ? req.body : {};
+  const query = req.query && typeof req.query === "object" ? req.query : {};
+
+  const candidates = [req.params.id, body.id, body._id, query.id, query._id]
     .map((value) => String(value || "").trim())
     .filter(Boolean)
     .filter((value) => {
@@ -422,7 +425,8 @@ const rejectEntity = asyncHandler(async (req, res) => {
     throw new AppError("Approval allowed only for doctors, hospitals, pharmacies, insurance, and employers", 400);
   }
 
-  const rejectionReason = String(req.body.rejectionReason || "").trim();
+  const body = req.body && typeof req.body === "object" ? req.body : {};
+  const rejectionReason = String(body.rejectionReason || "").trim();
   if (!rejectionReason) {
     throw new AppError("rejectionReason is required", 400);
   }
