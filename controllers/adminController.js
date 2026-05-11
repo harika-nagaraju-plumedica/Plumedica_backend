@@ -5,6 +5,7 @@ const sendResponse = require("../utils/apiResponse");
 const AppError = require("../utils/AppError");
 const { generateToken } = require("../utils/token");
 const { validateRequiredFields } = require("../utils/validation");
+const { sendEntityStatusNotification } = require("../services/entityStatusNotificationService");
 
 const Admin = require("../models/Admin");
 const Doctor = require("../models/Doctor");
@@ -18,49 +19,63 @@ const Employer = require("../models/Employer");
 const ENTITY_CONFIG = {
   doctors: {
     model: Doctor,
+    entityLabel: "doctor registration",
     nameFields: ["fullName"],
     emailFields: ["email"],
     cityFields: ["clinicAddress"],
+    approvalNextSteps: "Log in to complete your doctor profile and set your availability.",
   },
   hospitals: {
     model: Hospital,
+    entityLabel: "hospital registration",
     nameFields: ["hospitalName"],
     emailFields: ["email"],
     cityFields: ["city"],
+    approvalNextSteps: "Log in to update hospital details and start managing your account.",
   },
   pharmacies: {
     model: Pharmacy,
+    entityLabel: "pharmacy registration",
     nameFields: ["legalPharmacyName"],
     emailFields: ["email"],
     cityFields: ["city"],
+    approvalNextSteps: "Log in to update your pharmacy catalog and business profile.",
   },
   insurance: {
     model: PartnerOrganization,
+    entityLabel: "insurance partner registration",
     nameFields: ["organizationName"],
     emailFields: ["email"],
     cityFields: [],
+    approvalNextSteps: "Log in to complete your organization setup and partnership details.",
   },
   patients: {
     model: Patient,
+    entityLabel: "patient registration",
     nameFields: ["fullName"],
     emailFields: ["email"],
     cityFields: ["address"],
+    approvalNextSteps: "Log in to complete your profile and explore available services.",
   },
   jobseekers: {
     model: JobSeeker,
+    entityLabel: "job seeker registration",
     nameFields: ["fullName"],
     emailFields: ["email"],
     cityFields: [],
+    approvalNextSteps: "Log in to update your profile and start applying for jobs.",
   },
   employers: {
     model: Employer,
+    entityLabel: "employer registration",
     nameFields: ["companyName"],
     emailFields: ["email"],
     cityFields: [],
+    approvalNextSteps: "Log in to create job listings and manage applicants.",
   },
 };
 
-const REGULATED_ENTITY_KEYS = ["doctors", "hospitals", "pharmacies", "insurance"];
+const REGULATED_ENTITY_KEYS = ["doctors", "hospitals", "pharmacies", "insurance", "employers"];
 const ALLOWED_STATUSES = ["Pending", "Approved", "Rejected"];
 
 const BCRYPT_HASH_REGEX = /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/;
@@ -97,6 +112,52 @@ const getEntityConfig = (entityKey) => {
   }
 
   return config;
+};
+
+const pickFirstDefinedValue = (record, fields = []) => {
+  for (const field of fields) {
+    const value = String(record?.[field] || "").trim();
+    if (value) {
+      return value;
+    }
+  }
+
+  return "";
+};
+
+const notifyEntityStatusChange = async ({ entityKey, record, config, status, rejectionReason }) => {
+  const recipientEmail = pickFirstDefinedValue(record, config.emailFields);
+  if (!recipientEmail) {
+    console.error("[admin-approval] status updated but no email found", {
+      entityLabel: config.entityLabel,
+      recordId: String(record?._id || ""),
+      status,
+    });
+    return;
+  }
+
+  const recipientName = pickFirstDefinedValue(record, config.nameFields) || "User";
+
+  try {
+    await sendEntityStatusNotification({
+      entityKey,
+      recordId: record?._id,
+      to: recipientEmail,
+      recipientName,
+      entityLabel: config.entityLabel,
+      status,
+      rejectionReason,
+      nextSteps: status === "Approved" ? config.approvalNextSteps : "",
+    });
+  } catch (error) {
+    console.error("[admin-approval] failed to send status notification", {
+      entityLabel: config.entityLabel,
+      recordId: String(record?._id || ""),
+      status,
+      recipientEmail,
+      error: error?.message || error,
+    });
+  }
 };
 
 const buildSearchQuery = (searchValue, fields) => {
@@ -147,7 +208,16 @@ const parseObjectIdParam = (idValue) => {
 };
 
 const resolveEntityId = (req) => {
-  return req.params.id || req.body.id || req.body._id || req.query.id || req.query._id;
+  const candidates = [req.params.id, req.body.id, req.body._id, req.query.id, req.query._id]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .filter((value) => {
+      const lowered = value.toLowerCase();
+      return lowered !== "undefined" && lowered !== "null";
+    });
+
+  const validObjectId = candidates.find((value) => mongoose.Types.ObjectId.isValid(value));
+  return validObjectId || candidates[0] || "";
 };
 
 const loginAdmin = asyncHandler(async (req, res) => {
@@ -314,7 +384,7 @@ const getEntityDetails = asyncHandler(async (req, res) => {
 const approveEntity = asyncHandler(async (req, res) => {
   const entity = String(req.params.entity || "").toLowerCase();
   if (!REGULATED_ENTITY_KEYS.includes(entity)) {
-    throw new AppError("Approval allowed only for doctors, hospitals, pharmacies, and insurance", 400);
+    throw new AppError("Approval allowed only for doctors, hospitals, pharmacies, insurance, and employers", 400);
   }
 
   const config = getEntityConfig(entity);
@@ -334,6 +404,13 @@ const approveEntity = asyncHandler(async (req, res) => {
     throw new AppError("Record not found", 404);
   }
 
+  await notifyEntityStatusChange({
+    entityKey: entity,
+    record,
+    config,
+    status: "Approved",
+  });
+
   return sendResponse(res, 200, true, "Entity approved successfully", {
     item: sanitizeDoc(record),
   });
@@ -342,7 +419,7 @@ const approveEntity = asyncHandler(async (req, res) => {
 const rejectEntity = asyncHandler(async (req, res) => {
   const entity = String(req.params.entity || "").toLowerCase();
   if (!REGULATED_ENTITY_KEYS.includes(entity)) {
-    throw new AppError("Approval allowed only for doctors, hospitals, pharmacies, and insurance", 400);
+    throw new AppError("Approval allowed only for doctors, hospitals, pharmacies, insurance, and employers", 400);
   }
 
   const rejectionReason = String(req.body.rejectionReason || "").trim();
@@ -366,6 +443,14 @@ const rejectEntity = asyncHandler(async (req, res) => {
   if (!record) {
     throw new AppError("Record not found", 404);
   }
+
+  await notifyEntityStatusChange({
+    entityKey: entity,
+    record,
+    config,
+    status: "Rejected",
+    rejectionReason,
+  });
 
   return sendResponse(res, 200, true, "Entity rejected successfully", {
     item: sanitizeDoc(record),

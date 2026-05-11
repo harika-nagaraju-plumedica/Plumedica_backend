@@ -11,6 +11,7 @@ const employerSchema = new mongoose.Schema(
       enum: ["Pending", "Approved", "Rejected"],
       default: "Pending",
     },
+    rejectionReason: { type: String, default: "" },
   },
   { timestamps: true }
 );

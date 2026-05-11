@@ -19,6 +19,8 @@ router.use(auth, adminOnly);
 router.get("/dashboard", getDashboard);
 router.get("/:entity", listEntities);
 router.get("/:entity/:id", getEntityDetails);
+router.put("/:entity/approve", approveEntity);
+router.put("/:entity/reject", rejectEntity);
 router.put("/:entity/:id/approve", approveEntity);
 router.put("/:entity/:id/reject", rejectEntity);
 
