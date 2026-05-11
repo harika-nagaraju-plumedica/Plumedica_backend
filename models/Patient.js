@@ -7,9 +7,11 @@ const patientSchema = new mongoose.Schema(
     password: { type: String, required: true, minlength: 6 },
     tokenVersion: { type: Number, default: 0 },
     mobile: { type: String, required: true, trim: true },
+    dob: { type: Date, default: null },
     gender: { type: String, required: true, trim: true },
     bloodGroup: { type: String, required: true, trim: true },
     address: { type: String, required: true, trim: true },
+    generatedId: { type: String, trim: true, uppercase: true, unique: true, sparse: true },
     status: {
       type: String,
       enum: ["Pending", "Approved", "Rejected"],
@@ -23,5 +25,6 @@ patientSchema.index({ status: 1, createdAt: -1 });
 patientSchema.index({ fullName: 1 });
 patientSchema.index({ email: 1 });
 patientSchema.index({ address: 1 });
+patientSchema.index({ generatedId: 1 });
 
 module.exports = mongoose.model("Patient", patientSchema);

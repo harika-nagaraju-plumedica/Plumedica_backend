@@ -6,6 +6,13 @@ const AppError = require("../utils/AppError");
 const { generateToken } = require("../utils/token");
 const { validateRequiredFields } = require("../utils/validation");
 const { sendEntityStatusNotification } = require("../services/entityStatusNotificationService");
+const {
+  generatePatientId,
+  generateDoctorId,
+  generateHospitalId,
+  ensureUniqueGeneratedId,
+} = require("../utils/approvalIdGenerator");
+const { sendApprovalIdEmail } = require("../services/approvalIdEmailService");
 
 const Admin = require("../models/Admin");
 const Doctor = require("../models/Doctor");
@@ -15,6 +22,7 @@ const PartnerOrganization = require("../models/PartnerOrganization");
 const Patient = require("../models/Patient");
 const JobSeeker = require("../models/JobSeeker");
 const Employer = require("../models/Employer");
+const ApprovalUser = require("../models/ApprovalUser");
 
 const ENTITY_CONFIG = {
   doctors: {
@@ -221,6 +229,81 @@ const resolveEntityId = (req) => {
 
   const validObjectId = candidates.find((value) => mongoose.Types.ObjectId.isValid(value));
   return validObjectId || candidates[0] || "";
+};
+
+const getApprovalCandidateById = async (id) => {
+  const [patient, doctor, hospital] = await Promise.all([
+    Patient.findById(id),
+    Doctor.findById(id),
+    Hospital.findById(id),
+  ]);
+
+  if (patient) {
+    return {
+      role: "patient",
+      model: Patient,
+      doc: patient,
+      name: patient.fullName,
+      phone: patient.mobile,
+      email: patient.email,
+      dob: patient.dob,
+      registrationYear: null,
+    };
+  }
+
+  if (doctor) {
+    const fallbackYear = doctor.createdAt instanceof Date ? doctor.createdAt.getFullYear() : null;
+    return {
+      role: "doctor",
+      model: Doctor,
+      doc: doctor,
+      name: doctor.fullName,
+      phone: doctor.mobileNumber,
+      email: doctor.email,
+      dob: null,
+      registrationYear: doctor.registrationYear || doctor.yearOfGraduation || fallbackYear,
+    };
+  }
+
+  if (hospital) {
+    const fallbackYear = hospital.createdAt instanceof Date ? hospital.createdAt.getFullYear() : null;
+    return {
+      role: "hospital",
+      model: Hospital,
+      doc: hospital,
+      name: hospital.hospitalName,
+      phone: hospital.mobile,
+      email: hospital.email,
+      dob: null,
+      registrationYear: hospital.registrationYear || fallbackYear,
+    };
+  }
+
+  return null;
+};
+
+const buildGeneratedId = (candidate) => {
+  if (candidate.role === "patient") {
+    return generatePatientId({
+      name: candidate.name,
+      dob: candidate.dob,
+      phone: candidate.phone,
+    });
+  }
+
+  if (candidate.role === "doctor") {
+    return generateDoctorId({
+      name: candidate.name,
+      registrationYear: candidate.registrationYear,
+      phone: candidate.phone,
+    });
+  }
+
+  return generateHospitalId({
+    name: candidate.name,
+    registrationYear: candidate.registrationYear,
+    phone: candidate.phone,
+  });
 };
 
 const loginAdmin = asyncHandler(async (req, res) => {
@@ -461,6 +544,67 @@ const rejectEntity = asyncHandler(async (req, res) => {
   });
 });
 
+const approveUserById = asyncHandler(async (req, res) => {
+  const id = parseObjectIdParam(req.params.id);
+  const candidate = await getApprovalCandidateById(id);
+
+  if (!candidate) {
+    throw new AppError("User not found for approval", 404);
+  }
+
+  const generatedId = String(candidate.doc.generatedId || "").trim()
+    ? String(candidate.doc.generatedId).trim().toUpperCase()
+    : await ensureUniqueGeneratedId({
+        model: candidate.model,
+        baseId: buildGeneratedId(candidate),
+      });
+
+  candidate.doc.generatedId = generatedId;
+  candidate.doc.status = "Approved";
+  if (Object.prototype.hasOwnProperty.call(candidate.doc.toObject(), "rejectionReason")) {
+    candidate.doc.rejectionReason = "";
+  }
+  await candidate.doc.save();
+
+  const approvalSnapshot = await ApprovalUser.findOneAndUpdate(
+    { role: candidate.role, email: candidate.email },
+    {
+      $set: {
+        name: candidate.name,
+        email: candidate.email,
+        phone: candidate.phone,
+        dob: candidate.dob || null,
+        registrationYear: candidate.registrationYear || null,
+        role: candidate.role,
+        generatedId,
+        status: "approved",
+      },
+    },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  ).lean();
+
+  try {
+    await sendApprovalIdEmail({
+      to: candidate.email,
+      recipientName: candidate.name,
+      role: candidate.role,
+      generatedId,
+    });
+  } catch (error) {
+    console.error("[approve-user] failed to send generated id email", {
+      role: candidate.role,
+      recordId: String(candidate.doc._id || ""),
+      email: candidate.email,
+      error: error?.message || error,
+    });
+  }
+
+  return sendResponse(res, 200, true, "User approved successfully", {
+    item: sanitizeDoc(candidate.doc),
+    approvalRecord: approvalSnapshot,
+  });
+});
+
 module.exports = {
   loginAdmin,
   getDashboard,
@@ -468,4 +612,5 @@ module.exports = {
   getEntityDetails,
   approveEntity,
   rejectEntity,
+  approveUserById,
 };

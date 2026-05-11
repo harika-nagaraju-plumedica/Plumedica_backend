@@ -22,6 +22,7 @@ const doctorSchema = new mongoose.Schema(
     tokenVersion: { type: Number, default: 0 },
     qualification: { type: String, required: true, trim: true },
     specialization: { type: String, trim: true },
+    registrationYear: { type: Number, min: 1900, max: 3000 },
     yearOfGraduation: { type: Number, required: true },
     yearsOfExperience: { type: Number, required: true },
     clinicAddress: { type: String, required: true, trim: true },
@@ -35,6 +36,7 @@ const doctorSchema = new mongoose.Schema(
         message: "availabilitySlots must include at least one day",
       },
     },
+    generatedId: { type: String, trim: true, uppercase: true, unique: true, sparse: true },
     status: {
       type: String,
       enum: ["Pending", "Approved", "Rejected"],
@@ -49,5 +51,6 @@ doctorSchema.index({ status: 1, createdAt: -1 });
 doctorSchema.index({ fullName: 1 });
 doctorSchema.index({ email: 1 });
 doctorSchema.index({ clinicAddress: 1 });
+doctorSchema.index({ generatedId: 1 });
 
 module.exports = mongoose.model("Doctor", doctorSchema);

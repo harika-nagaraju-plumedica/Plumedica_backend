@@ -6,6 +6,7 @@ const {
   getEntityDetails,
   approveEntity,
   rejectEntity,
+  approveUserById,
 } = require("../controllers/adminController");
 const auth = require("../middleware/auth");
 const adminOnly = require("../middleware/admin");
@@ -17,6 +18,7 @@ router.post("/login", loginAdmin);
 router.use(auth, adminOnly);
 
 router.get("/dashboard", getDashboard);
+router.post("/approve-user/:id", approveUserById);
 router.get("/:entity", listEntities);
 router.get("/:entity/:id", getEntityDetails);
 router.put("/:entity/approve", approveEntity);
