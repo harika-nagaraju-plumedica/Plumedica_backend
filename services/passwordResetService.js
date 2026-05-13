@@ -153,6 +153,14 @@ const forgotPassword = async ({ moduleKey, authRole, identifier, ipAddress }) =>
   const user = await findByIdentifier(normalizedModule, identifierCanonical, identifierIsEmail);
   let resetTokenForResponse = null;
 
+  if (!user && EXPOSE_RESET_TOKEN_IN_FORGOT_PASSWORD_RESPONSE) {
+    throw new AppError(
+      "No account found for this identifier. Use a registered account to receive resetToken in development.",
+      404,
+      "ACCOUNT_NOT_FOUND_FOR_PASSWORD_RESET"
+    );
+  }
+
   if (user) {
     await passwordResetRepository.deleteActiveTokensForUser({
       moduleKey: normalizedModule,
