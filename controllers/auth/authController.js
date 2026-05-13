@@ -1,5 +1,6 @@
 const bcrypt = require("bcryptjs");
 const User = require("../../models/User");
+const Admin = require("../../models/Admin");
 const asyncHandler = require("../../utils/asyncHandler");
 const sendResponse = require("../../utils/apiResponse");
 const AppError = require("../../utils/AppError");
@@ -8,6 +9,7 @@ const { generateToken } = require("../../utils/token");
 const { MODULE_ALIASES, normalizeEmail, findMatchesByEmail } = require("../../utils/authModules");
 
 const isLoginDebugEnabled = process.env.AUTH_LOGIN_DEBUG === "true";
+const BCRYPT_HASH_REGEX = /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/;
 
 const sanitizeProfile = (doc) => {
   const profile = doc.toObject();
@@ -133,7 +135,72 @@ const loginUser = asyncHandler(async (req, res) => {
   });
 });
 
+const loginAdmin = asyncHandler(async (req, res) => {
+  const requiredFields = ["email", "password"];
+  const missingFields = validateRequiredFields(req.body, requiredFields);
+
+  if (missingFields.length) {
+    throw new AppError(`Missing required fields: ${missingFields.join(", ")}`, 400);
+  }
+
+  const email = normalizeEmail(req.body.email);
+  const password = String(req.body.password);
+
+  const admin = await Admin.findOne({ email });
+  if (!admin) {
+    throw new AppError("Invalid email or password", 401, "INVALID_ADMIN_CREDENTIALS");
+  }
+
+  const role = String(admin.role || "").trim().toLowerCase();
+  if (role !== "admin") {
+    throw new AppError("Invalid email or password", 401, "INVALID_ADMIN_CREDENTIALS");
+  }
+
+  const status = String(admin.status || "ACTIVE").trim().toUpperCase();
+  if (status !== "ACTIVE") {
+    throw new AppError("Admin account is inactive", 403, "INACTIVE_ADMIN_ACCOUNT");
+  }
+
+  const storedPassword = String(admin.password || "");
+  let isPasswordValid = false;
+
+  if (BCRYPT_HASH_REGEX.test(storedPassword)) {
+    isPasswordValid = await bcrypt.compare(password, storedPassword);
+  } else if (storedPassword === password) {
+    // Backward compatibility for any legacy plain-text admin records.
+    isPasswordValid = true;
+    admin.password = await bcrypt.hash(password, 10);
+    await admin.save();
+  }
+
+  if (!isPasswordValid) {
+    throw new AppError("Invalid email or password", 401, "INVALID_ADMIN_CREDENTIALS");
+  }
+
+  const permissions = Array.isArray(admin.permissions) ? admin.permissions : [];
+  const token = generateToken({
+    id: admin._id,
+    role: "admin",
+    email: admin.email,
+    tokenVersion: Number(admin.tokenVersion || 0),
+    permissions,
+  });
+
+  return sendResponse(res, 200, true, "Admin login successful", {
+    token,
+    user: {
+      id: String(admin._id),
+      name: admin.name,
+      email: admin.email,
+      role: "ADMIN",
+      permissions,
+      status,
+    },
+  });
+});
+
 module.exports = {
   registerUser,
   loginUser,
+  loginAdmin,
 };
