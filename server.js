@@ -17,6 +17,7 @@ const partnerRoutes = require("./routes/partner/partnerRoutes");
 const jobSeekerRoutes = require("./routes/jobSeeker/jobSeekerRoutes");
 const employerRoutes = require("./routes/employer/employerRoutes");
 const adminRoutes = require("./routes/adminRoutes");
+const adminsRoutes = require("./routes/adminsRoutes");
 
 const app = express();
 
@@ -43,6 +44,7 @@ app.use("/api/job-seekers", jobSeekerRoutes);
 app.use("/api/employers", employerRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/admins", adminsRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

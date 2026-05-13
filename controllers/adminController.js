@@ -119,7 +119,7 @@ const normalizeStatus = (status) => {
 const getEntityConfig = (entityKey) => {
   const config = ENTITY_CONFIG[entityKey];
   if (!config) {
-    throw new AppError("Invalid admin entity", 400);
+    throw new AppError("Invalid or missing fields", 400, "VALIDATION_FAILED");
   }
 
   return config;
@@ -197,6 +197,70 @@ const sanitizeDoc = (doc) => {
   }
   delete entity.password;
   return entity;
+};
+
+const ADMIN_PERMISSION_ENUM = [
+  "HOSPITALS",
+  "DOCTORS",
+  "PHARMACIES",
+  "PATIENTS",
+  "INSURANCE",
+  "JOB_SEEKERS",
+  "EMPLOYERS",
+  "DASHBOARD",
+  "APPROVALS",
+  "REPORTS",
+  "SETTINGS",
+];
+
+const sendAdminValidationFailed = (res) => {
+  return res.status(400).json({
+    error: "VALIDATION_FAILED",
+    message: "Invalid or missing fields",
+  });
+};
+
+const normalizeAdminPermissions = (permissions) => {
+  if (!Array.isArray(permissions)) {
+    return null;
+  }
+
+  const normalized = permissions
+    .map((permission) => String(permission || "").trim().toUpperCase())
+    .filter(Boolean);
+
+  if (!normalized.length) {
+    return [];
+  }
+
+  const unique = [...new Set(normalized)];
+  const hasInvalid = unique.some((permission) => !ADMIN_PERMISSION_ENUM.includes(permission));
+  if (hasInvalid) {
+    return null;
+  }
+
+  return unique;
+};
+
+const toApiAdminRole = (roleValue = "") => {
+  const normalized = String(roleValue).trim().toLowerCase();
+  if (normalized === "superadmin" || normalized === "super_admin") {
+    return "SUPER_ADMIN";
+  }
+
+  return "ADMIN";
+};
+
+const toAdminPayload = (admin) => {
+  const profile = sanitizeDoc(admin);
+  return {
+    id: profile.id,
+    name: profile.name,
+    email: profile.email,
+    role: toApiAdminRole(profile.role),
+    permissions: Array.isArray(profile.permissions) ? profile.permissions : [],
+    status: profile.status || "ACTIVE",
+  };
 };
 
 const getPagination = (req) => {
@@ -625,6 +689,118 @@ const debugEmailDelivery = asyncHandler(async (req, res) => {
   );
 });
 
+const createAdmin = asyncHandler(async (req, res) => {
+  const body = req.body && typeof req.body === "object" ? req.body : {};
+
+  const name = String(body.name || "").trim();
+  const email = String(body.email || "").trim().toLowerCase();
+  const password = String(body.password || "");
+  const role = String(body.role || "").trim();
+  const permissions = normalizeAdminPermissions(body.permissions);
+
+  if (!name || !email || !password || role !== "ADMIN" || password.length < 6 || permissions === null) {
+    return sendAdminValidationFailed(res);
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return sendAdminValidationFailed(res);
+  }
+
+  const existing = await Admin.findOne({ email });
+  if (existing) {
+    throw new AppError("email already exists", 409, "DUPLICATE_VALUE");
+  }
+
+  const passwordHash = await bcrypt.hash(password, 10);
+
+  const created = await Admin.create({
+    name,
+    email,
+    password: passwordHash,
+    role: "admin",
+    permissions,
+    status: "ACTIVE",
+  });
+
+  return sendResponse(res, 201, true, "Admin created successfully", toAdminPayload(created));
+});
+
+const listAdmins = asyncHandler(async (req, res) => {
+  const admins = await Admin.find({ role: { $in: ["admin", "ADMIN"] } })
+    .sort({ createdAt: -1 })
+    .lean();
+
+  return sendResponse(res, 200, true, "Admins fetched successfully", {
+    items: admins.map((admin) => toAdminPayload(admin)),
+  });
+});
+
+const updateAdmin = asyncHandler(async (req, res) => {
+  const id = parseObjectIdParam(req.params.id);
+
+  const admin = await Admin.findById(id);
+  if (!admin) {
+    throw new AppError("Admin not found", 404, "ADMIN_NOT_FOUND");
+  }
+
+  const body = req.body && typeof req.body === "object" ? req.body : {};
+  const update = {};
+
+  if (Object.prototype.hasOwnProperty.call(body, "name")) {
+    const name = String(body.name || "").trim();
+    if (!name) {
+      return sendAdminValidationFailed(res);
+    }
+    update.name = name;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, "permissions")) {
+    const permissions = normalizeAdminPermissions(body.permissions);
+    if (permissions === null) {
+      return sendAdminValidationFailed(res);
+    }
+    update.permissions = permissions;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, "status")) {
+    const status = String(body.status || "").trim().toUpperCase();
+    if (!["ACTIVE", "INACTIVE"].includes(status)) {
+      return sendAdminValidationFailed(res);
+    }
+    update.status = status;
+  }
+
+  if (!Object.keys(update).length) {
+    return sendAdminValidationFailed(res);
+  }
+
+  Object.assign(admin, update);
+  await admin.save();
+
+  return sendResponse(res, 200, true, "Admin updated successfully", toAdminPayload(admin));
+});
+
+const deleteAdmin = asyncHandler(async (req, res) => {
+  const id = parseObjectIdParam(req.params.id);
+
+  const admin = await Admin.findById(id);
+  if (!admin) {
+    throw new AppError("Admin not found", 404, "ADMIN_NOT_FOUND");
+  }
+
+  const role = String(admin.role || "").toLowerCase();
+  if (role === "superadmin" || role === "super_admin") {
+    throw new AppError("Cannot delete SUPER_ADMIN", 400, "SUPER_ADMIN_PROTECTED");
+  }
+
+  await Admin.deleteOne({ _id: admin._id });
+
+  return sendResponse(res, 200, true, "Admin deleted successfully", {
+    id: String(admin._id),
+  });
+});
+
 module.exports = {
   loginAdmin,
   getDashboard,
@@ -634,4 +810,8 @@ module.exports = {
   rejectEntity,
   approveUserById,
   debugEmailDelivery,
+  createAdmin,
+  listAdmins,
+  updateAdmin,
+  deleteAdmin,
 };

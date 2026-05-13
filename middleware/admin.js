@@ -5,7 +5,8 @@ const adminOnly = (req, res, next) => {
     throw new AppError("Unauthorized", 401);
   }
 
-  if (!["admin", "superadmin"].includes(req.user.role)) {
+  const role = String(req.user.role || "").trim().toLowerCase();
+  if (!["admin", "superadmin", "super_admin"].includes(role)) {
     throw new AppError("Forbidden: admin access required", 403);
   }
 

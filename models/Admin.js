@@ -8,8 +8,17 @@ const adminSchema = new mongoose.Schema(
     tokenVersion: { type: Number, default: 0 },
     role: {
       type: String,
-      enum: ["superadmin", "admin"],
+      enum: ["superadmin", "admin", "SUPER_ADMIN", "ADMIN"],
       default: "admin",
+    },
+    permissions: {
+      type: [String],
+      default: [],
+    },
+    status: {
+      type: String,
+      enum: ["ACTIVE", "INACTIVE"],
+      default: "ACTIVE",
     },
   },
   { timestamps: true }
