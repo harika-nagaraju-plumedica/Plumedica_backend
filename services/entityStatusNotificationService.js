@@ -21,6 +21,11 @@ const isSmtpConfigured = () => {
   );
 };
 
+const getMissingSmtpKeys = () => {
+  const required = ["SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS"];
+  return required.filter((key) => !String(process.env[key] || "").trim());
+};
+
 const getSmtpConfigSummary = () => {
   return {
     host: String(process.env.SMTP_HOST || "").trim(),
@@ -211,6 +216,7 @@ const sendEntityStatusNotification = async ({
 const debugEntityStatusEmailDelivery = async ({ to } = {}) => {
   const diagnostics = {
     smtpConfigured: isSmtpConfigured(),
+    missingKeys: getMissingSmtpKeys(),
     config: getSmtpConfigSummary(),
   };
 

@@ -22,24 +22,16 @@ const { sendEmailResetInstructions, sendSmsResetInstructions } = require("../uti
 const RESET_TOKEN_TTL_MINUTES = Math.max(parseInt(process.env.PASSWORD_RESET_TOKEN_TTL_MINUTES, 10) || 15, 5);
 const RESET_RATE_LIMIT_WINDOW_MINUTES = Math.max(parseInt(process.env.FORGOT_PASSWORD_WINDOW_MINUTES, 10) || 15, 1);
 const RESET_RATE_LIMIT_MAX_ATTEMPTS = Math.max(parseInt(process.env.FORGOT_PASSWORD_MAX_ATTEMPTS, 10) || 5, 1);
-const EXPOSE_RESET_TOKEN_IN_FORGOT_PASSWORD_RESPONSE =
-  String(
-    process.env.PASSWORD_RESET_EXPOSE_TOKEN ||
-    (process.env.NODE_ENV === "production" ? "false" : "true")
-  ).toLowerCase() === "true";
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
+const EXPOSE_RESET_TOKEN_IN_FORGOT_PASSWORD_RESPONSE = !IS_PRODUCTION;
+const RESET_PASSWORD_TEST_BASE_URL = String(process.env.RESET_PASSWORD_TEST_BASE_URL || "http://localhost:3000/reset-password").trim();
 
-const buildForgotPasswordDebugData = (tokenGenerated, reason) => {
-  if (!EXPOSE_RESET_TOKEN_IN_FORGOT_PASSWORD_RESPONSE) {
-    return {};
-  }
+const FORGOT_PASSWORD_RESPONSE_MESSAGE = "Reset instructions sent";
 
-  return {
-    tokenGenerated,
-    reason,
-  };
+const buildResetUrl = (token) => {
+  const trimmedBase = RESET_PASSWORD_TEST_BASE_URL.replace(/\/+$/, "");
+  return `${trimmedBase}/${token}`;
 };
-
-const GENERIC_FORGOT_RESPONSE = "If the account exists, reset instructions have been sent";
 
 const resolveModuleForForgotPassword = async ({ moduleKey, authRole, identifierCanonical, identifierIsEmail }) => {
   const explicitModule = normalizeModuleKey(moduleKey);
@@ -153,8 +145,8 @@ const forgotPassword = async ({ moduleKey, authRole, identifier, ipAddress }) =>
 
   if (!normalizedModule || !moduleConfig) {
     return {
-      message: GENERIC_FORGOT_RESPONSE,
-      data: buildForgotPasswordDebugData(false, "MODULE_NOT_RESOLVED"),
+      message: FORGOT_PASSWORD_RESPONSE_MESSAGE,
+      data: {},
     };
   }
 
@@ -189,14 +181,14 @@ const forgotPassword = async ({ moduleKey, authRole, identifier, ipAddress }) =>
   }
 
   return {
-    message: GENERIC_FORGOT_RESPONSE,
+    message: FORGOT_PASSWORD_RESPONSE_MESSAGE,
     data:
       EXPOSE_RESET_TOKEN_IN_FORGOT_PASSWORD_RESPONSE && resetTokenForResponse
         ? {
           resetToken: resetTokenForResponse,
-          expiresInMinutes: RESET_TOKEN_TTL_MINUTES,
+          resetUrl: buildResetUrl(resetTokenForResponse),
         }
-        : buildForgotPasswordDebugData(false, "ACCOUNT_NOT_FOUND"),
+        : {},
   };
 };
 

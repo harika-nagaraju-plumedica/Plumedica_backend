@@ -30,15 +30,31 @@ Use `module` in request body to target the account type (`admin`, `user`, `docto
 }
 ```
 
-### Forgot Password Response (Always Generic)
+### Forgot Password Response (Production)
 ```json
 {
   "success": true,
-  "message": "If the account exists, reset instructions have been sent",
+  "message": "Reset instructions sent",
   "data": {},
   "errorCode": null
 }
 ```
+
+### Forgot Password Response (Development)
+```json
+{
+  "success": true,
+  "message": "Reset instructions sent",
+  "data": {
+    "resetToken": "98f66b205c26cf95a4630f7661c4a2d322ea36781dc1168be6f7f15e2e8af6a7",
+    "resetUrl": "http://localhost:3000/reset-password/98f66b205c26cf95a4630f7661c4a2d322ea36781dc1168be6f7f15e2e8af6a7"
+  },
+  "errorCode": null
+}
+```
+
+In production, reset tokens are delivered only through email/SMS and are not returned in API responses.
+Use `RESET_PASSWORD_TEST_BASE_URL` to override the default reset URL base (`http://localhost:3000/reset-password`).
 
 ### Reset Password Request
 Token can be provided using one of these sources (in priority order):
