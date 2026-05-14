@@ -144,13 +144,18 @@ const notifyEntityStatusChange = async ({ entityKey, record, config, status, rej
       recordId: String(record?._id || ""),
       status,
     });
-    return;
+    return {
+      attempted: false,
+      delivered: false,
+      reason: "RECIPIENT_EMAIL_NOT_FOUND",
+      recipientEmail: "",
+    };
   }
 
   const recipientName = pickFirstDefinedValue(record, config.nameFields) || "User";
 
   try {
-    await sendEntityStatusNotification({
+    const delivery = await sendEntityStatusNotification({
       entityKey,
       recordId: record?._id,
       to: recipientEmail,
@@ -160,6 +165,31 @@ const notifyEntityStatusChange = async ({ entityKey, record, config, status, rej
       rejectionReason,
       nextSteps: status === "Approved" ? config.approvalNextSteps : "",
     });
+
+    if (!delivery?.delivered) {
+      const reason = String(delivery?.reason || "EMAIL_NOT_DELIVERED");
+      console.error("[admin-approval] status email not delivered", {
+        entityLabel: config.entityLabel,
+        recordId: String(record?._id || ""),
+        status,
+        recipientEmail,
+        reason,
+      });
+
+      return {
+        attempted: true,
+        delivered: false,
+        reason,
+        recipientEmail,
+      };
+    }
+
+    return {
+      attempted: true,
+      delivered: true,
+      provider: delivery?.provider || "smtp",
+      recipientEmail,
+    };
   } catch (error) {
     console.error("[admin-approval] failed to send status notification", {
       entityLabel: config.entityLabel,
@@ -168,6 +198,13 @@ const notifyEntityStatusChange = async ({ entityKey, record, config, status, rej
       recipientEmail,
       error: error?.message || error,
     });
+
+    return {
+      attempted: true,
+      delivered: false,
+      reason: String(error?.message || "EMAIL_DELIVERY_ERROR"),
+      recipientEmail,
+    };
   }
 };
 
@@ -557,7 +594,7 @@ const approveEntity = asyncHandler(async (req, res) => {
     throw new AppError("Record not found", 404);
   }
 
-  await notifyEntityStatusChange({
+  const notification = await notifyEntityStatusChange({
     entityKey: entity,
     record,
     config,
@@ -566,6 +603,7 @@ const approveEntity = asyncHandler(async (req, res) => {
 
   return sendResponse(res, 200, true, "Entity approved successfully", {
     item: sanitizeDoc(record),
+    notification,
   });
 });
 
@@ -598,7 +636,7 @@ const rejectEntity = asyncHandler(async (req, res) => {
     throw new AppError("Record not found", 404);
   }
 
-  await notifyEntityStatusChange({
+  const notification = await notifyEntityStatusChange({
     entityKey: entity,
     record,
     config,
@@ -608,6 +646,7 @@ const rejectEntity = asyncHandler(async (req, res) => {
 
   return sendResponse(res, 200, true, "Entity rejected successfully", {
     item: sanitizeDoc(record),
+    notification,
   });
 });
 
@@ -650,13 +689,37 @@ const approveUserById = asyncHandler(async (req, res) => {
     { upsert: true, new: true, setDefaultsOnInsert: true }
   ).lean();
 
+  let approvalIdEmail = {
+    attempted: true,
+    delivered: false,
+    reason: "NOT_ATTEMPTED",
+    recipientEmail: candidate.email,
+  };
+
   try {
-    await sendApprovalIdEmail({
+    const emailResult = await sendApprovalIdEmail({
       to: candidate.email,
       recipientName: candidate.name,
       role: candidate.role,
       generatedId,
     });
+
+    approvalIdEmail = {
+      attempted: true,
+      delivered: Boolean(emailResult?.delivered),
+      provider: String(emailResult?.provider || "smtp"),
+      reason: String(emailResult?.reason || ""),
+      recipientEmail: candidate.email,
+    };
+
+    if (!approvalIdEmail.delivered) {
+      console.error("[approve-user] approval id email not delivered", {
+        role: candidate.role,
+        recordId: String(candidate.doc._id || ""),
+        email: candidate.email,
+        reason: approvalIdEmail.reason || "EMAIL_NOT_DELIVERED",
+      });
+    }
   } catch (error) {
     console.error("[approve-user] failed to send generated id email", {
       role: candidate.role,
@@ -664,11 +727,19 @@ const approveUserById = asyncHandler(async (req, res) => {
       email: candidate.email,
       error: error?.message || error,
     });
+
+    approvalIdEmail = {
+      attempted: true,
+      delivered: false,
+      reason: String(error?.message || "EMAIL_DELIVERY_ERROR"),
+      recipientEmail: candidate.email,
+    };
   }
 
   return sendResponse(res, 200, true, "User approved successfully", {
     item: sanitizeDoc(candidate.doc),
     approvalRecord: approvalSnapshot,
+    approvalIdEmail,
   });
 });
 
