@@ -108,7 +108,7 @@ SMTP_SECURE=false
 SMTP_USER=apikey-or-username
 SMTP_PASS=smtp-password
 SMTP_FROM=no-reply@plumedica.com
-APPROVAL_FROM_EMAIL=harika.nagaraju@plumedica.com
+APPROVAL_FROM_EMAIL=info@plumedica.com
 ```
 
 ## Run Locally

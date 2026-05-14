@@ -10,6 +10,7 @@ const resetEnv = () => {
   delete process.env.SMTP_USER;
   delete process.env.SMTP_PASS;
   delete process.env.SMTP_FROM;
+  delete process.env.APPROVAL_FROM_EMAIL;
   delete process.env.TWILIO_ACCOUNT_SID;
   delete process.env.TWILIO_AUTH_TOKEN;
   delete process.env.TWILIO_FROM_NUMBER;
@@ -60,6 +61,19 @@ test("passes when SMTP config is complete in strict mode", () => {
   process.env.SMTP_USER = "user";
   process.env.SMTP_PASS = "pass";
   process.env.SMTP_FROM = "no-reply@example.com";
+
+  assert.equal(validateStartupConfig(), true);
+});
+
+test("passes when SMTP config is complete with APPROVAL_FROM_EMAIL in strict mode", () => {
+  const { validateStartupConfig } = require("../utils/startupValidation");
+  process.env.NODE_ENV = "production";
+  process.env.PASSWORD_RESET_REQUIRE_DELIVERY = "true";
+  process.env.SMTP_HOST = "smtp.example.com";
+  process.env.SMTP_PORT = "587";
+  process.env.SMTP_USER = "user";
+  process.env.SMTP_PASS = "pass";
+  process.env.APPROVAL_FROM_EMAIL = "info@plumedica.com";
 
   assert.equal(validateStartupConfig(), true);
 });

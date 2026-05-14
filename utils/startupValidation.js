@@ -31,7 +31,7 @@ const validateStartupConfig = () => {
     process.env.SMTP_PORT,
     process.env.SMTP_USER,
     process.env.SMTP_PASS,
-    process.env.SMTP_FROM,
+    process.env.APPROVAL_FROM_EMAIL || process.env.SMTP_FROM,
   ];
 
   const twilioValues = [
@@ -43,7 +43,7 @@ const validateStartupConfig = () => {
   const smtpConfigured = validateChannel({
     name: "SMTP",
     values: smtpValues,
-    requiredKeys: ["SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS", "SMTP_FROM"],
+    requiredKeys: ["SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS", "APPROVAL_FROM_EMAIL or SMTP_FROM"],
   });
 
   const twilioConfigured = validateChannel({

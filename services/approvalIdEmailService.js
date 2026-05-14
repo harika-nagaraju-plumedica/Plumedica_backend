@@ -1,7 +1,7 @@
 const nodemailer = require("nodemailer");
 
 let cachedTransporter = null;
-const DEFAULT_APPROVAL_FROM_EMAIL = "harika.nagaraju@plumedica.com";
+const DEFAULT_APPROVAL_FROM_EMAIL = "info@plumedica.com";
 
 const getFromAddress = () => {
   const fromEmail = String(

@@ -2,9 +2,28 @@ const nodemailer = require("nodemailer");
 const twilio = require("twilio");
 
 let cachedEmailTransporter = null;
+const DEFAULT_FROM_EMAIL = "info@plumedica.com";
+
+const getFromAddress = () => {
+  const fromEmail = String(
+    process.env.APPROVAL_FROM_EMAIL || process.env.SMTP_FROM || DEFAULT_FROM_EMAIL
+  ).trim();
+  const fromName = String(process.env.APP_NAME || "PluMedica").trim();
+  return `${fromName} <${fromEmail}>`;
+};
+
+const hasFromAddress = () => {
+  return Boolean(String(process.env.APPROVAL_FROM_EMAIL || process.env.SMTP_FROM || DEFAULT_FROM_EMAIL).trim());
+};
 
 const isEmailConfigured = () => {
-  return Boolean(process.env.SMTP_HOST && process.env.SMTP_PORT && process.env.SMTP_USER && process.env.SMTP_PASS && process.env.SMTP_FROM);
+  return Boolean(
+    process.env.SMTP_HOST &&
+      process.env.SMTP_PORT &&
+      process.env.SMTP_USER &&
+      process.env.SMTP_PASS &&
+      hasFromAddress()
+  );
 };
 
 const getEmailTransporter = () => {
@@ -53,7 +72,7 @@ const sendEmailResetInstructions = async ({ to, moduleKey, token, expiresInMinut
   }
 
   await transporter.sendMail({
-    from: process.env.SMTP_FROM,
+    from: getFromAddress(),
     to,
     subject: message.subject,
     text: message.text,

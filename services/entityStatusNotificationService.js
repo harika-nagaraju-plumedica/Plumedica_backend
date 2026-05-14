@@ -2,7 +2,7 @@ const nodemailer = require("nodemailer");
 const EntityStatusEmailLog = require("../models/EntityStatusEmailLog");
 
 let cachedTransporter = null;
-const DEFAULT_APPROVAL_FROM_EMAIL = "harika.nagaraju@plumedica.com";
+const DEFAULT_APPROVAL_FROM_EMAIL = "info@plumedica.com";
 
 const getFromAddress = () => {
   const fromEmail = String(
