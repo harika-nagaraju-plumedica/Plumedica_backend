@@ -11,6 +11,7 @@ const authRoutes = require("./routes/auth");
 const doctorRoutes = require("./routes/doctor/doctorRoutes");
 const pharmacyRoutes = require("./routes/pharmacy/pharmacyRoutes");
 const patientRoutes = require("./routes/patient/patientRoutes");
+const patientDashboardRoutes = require("./routes/patient/dashboardRoutes");
 const hospitalRoutes = require("./routes/hospital/hospitalRoutes");
 const diagnosticsRoutes = require("./routes/diagnostics/diagnosticsRoutes");
 const partnerRoutes = require("./routes/partner/partnerRoutes");
@@ -37,6 +38,7 @@ app.get("/", (req, res) => {
 app.use("/api/doctors", doctorRoutes);
 app.use("/api/pharmacies", pharmacyRoutes);
 app.use("/api/patients", patientRoutes);
+app.use("/api/patient", patientDashboardRoutes);
 app.use("/api/hospitals", hospitalRoutes);
 app.use("/api/diagnostics-centers", diagnosticsRoutes);
 app.use("/api/partner-organizations", partnerRoutes);

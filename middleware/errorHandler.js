@@ -1,6 +1,5 @@
 const multer = require("multer");
 const AppError = require("../utils/AppError");
-const sendResponse = require("../utils/apiResponse");
 
 const notFound = (req, res, next) => {
   next(new AppError(`Route not found: ${req.originalUrl}`, 404, "ROUTE_NOT_FOUND"));
@@ -38,7 +37,12 @@ const errorHandler = (err, req, res, next) => {
     errorCode = "UPLOAD_ERROR";
   }
 
-  return sendResponse(res, statusCode, false, message, {}, errorCode);
+  return res.status(statusCode).json({
+    success: false,
+    message,
+    code: statusCode,
+    errorCode,
+  });
 };
 
 module.exports = {
