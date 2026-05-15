@@ -15,7 +15,7 @@ const {
   generateHospitalId,
   ensureUniqueGeneratedId,
 } = require("../utils/approvalIdGenerator");
-const { sendApprovalIdEmail } = require("../services/approvalIdEmailService");
+const { sendApprovalEmail } = require("../services/approvalEmailService");
 
 const Admin = require("../models/Admin");
 const Doctor = require("../models/Doctor");
@@ -689,7 +689,15 @@ const approveUserById = asyncHandler(async (req, res) => {
     { upsert: true, new: true, setDefaultsOnInsert: true }
   ).lean();
 
-  let approvalIdEmail = {
+  const requestBody = req.body && typeof req.body === "object" ? req.body : {};
+  const requestPassword = String(requestBody.password || "").trim();
+  const persistedPassword = String(candidate.doc.password || "").trim();
+  const approvalPassword = requestPassword || (BCRYPT_HASH_REGEX.test(persistedPassword) ? "" : persistedPassword);
+  const loginLink = String(
+    process.env.APP_LOGIN_URL || process.env.FRONTEND_LOGIN_URL || "https://plumedica.com/login"
+  ).trim();
+
+  let approvalEmail = {
     attempted: true,
     delivered: false,
     reason: "NOT_ATTEMPTED",
@@ -697,38 +705,39 @@ const approveUserById = asyncHandler(async (req, res) => {
   };
 
   try {
-    const emailResult = await sendApprovalIdEmail({
-      to: candidate.email,
-      recipientName: candidate.name,
-      role: candidate.role,
+    const emailResult = await sendApprovalEmail({
+      name: candidate.name,
+      email: candidate.email,
       generatedId,
+      password: approvalPassword,
+      loginLink,
     });
 
-    approvalIdEmail = {
+    approvalEmail = {
       attempted: true,
       delivered: Boolean(emailResult?.delivered),
-      provider: String(emailResult?.provider || "smtp"),
+      provider: String(emailResult?.provider || "sendgrid"),
       reason: String(emailResult?.reason || ""),
       recipientEmail: candidate.email,
     };
 
-    if (!approvalIdEmail.delivered) {
-      console.error("[approve-user] approval id email not delivered", {
+    if (!approvalEmail.delivered) {
+      console.error("[approve-user] approval email not delivered", {
         role: candidate.role,
         recordId: String(candidate.doc._id || ""),
         email: candidate.email,
-        reason: approvalIdEmail.reason || "EMAIL_NOT_DELIVERED",
+        reason: approvalEmail.reason || "EMAIL_NOT_DELIVERED",
       });
     }
   } catch (error) {
-    console.error("[approve-user] failed to send generated id email", {
+    console.error("[approve-user] failed to send approval email", {
       role: candidate.role,
       recordId: String(candidate.doc._id || ""),
       email: candidate.email,
       error: error?.message || error,
     });
 
-    approvalIdEmail = {
+    approvalEmail = {
       attempted: true,
       delivered: false,
       reason: String(error?.message || "EMAIL_DELIVERY_ERROR"),
@@ -739,7 +748,7 @@ const approveUserById = asyncHandler(async (req, res) => {
   return sendResponse(res, 200, true, "User approved successfully", {
     item: sanitizeDoc(candidate.doc),
     approvalRecord: approvalSnapshot,
-    approvalIdEmail,
+    approvalEmail,
   });
 });
 
