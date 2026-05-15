@@ -5,11 +5,7 @@ const ORIGINAL_ENV = { ...process.env };
 
 const resetEnv = () => {
   process.env = { ...ORIGINAL_ENV };
-  delete process.env.SMTP_HOST;
-  delete process.env.SMTP_PORT;
-  delete process.env.SMTP_USER;
-  delete process.env.SMTP_PASS;
-  delete process.env.SMTP_FROM;
+  delete process.env.SENDGRID_API_KEY;
   delete process.env.APPROVAL_FROM_EMAIL;
   delete process.env.TWILIO_ACCOUNT_SID;
   delete process.env.TWILIO_AUTH_TOKEN;
@@ -41,38 +37,31 @@ test("fails in production when strict mode is enabled and no provider is configu
   });
 });
 
-test("fails when SMTP config is partial in strict mode", () => {
+test("fails when SendGrid config is missing in strict mode", () => {
   const { validateStartupConfig } = require("../utils/startupValidation");
   process.env.NODE_ENV = "production";
   process.env.PASSWORD_RESET_REQUIRE_DELIVERY = "true";
-  process.env.SMTP_HOST = "smtp.example.com";
+  process.env.SENDGRID_API_KEY = "";
 
   assert.throws(() => validateStartupConfig(), {
-    message: /SMTP config is incomplete/i,
+    message: /no provider is configured/i,
   });
 });
 
-test("passes when SMTP config is complete in strict mode", () => {
+test("passes when SendGrid config is complete in strict mode", () => {
   const { validateStartupConfig } = require("../utils/startupValidation");
   process.env.NODE_ENV = "production";
   process.env.PASSWORD_RESET_REQUIRE_DELIVERY = "true";
-  process.env.SMTP_HOST = "smtp.example.com";
-  process.env.SMTP_PORT = "587";
-  process.env.SMTP_USER = "user";
-  process.env.SMTP_PASS = "pass";
-  process.env.SMTP_FROM = "no-reply@example.com";
+  process.env.SENDGRID_API_KEY = "SG.mock-key";
 
   assert.equal(validateStartupConfig(), true);
 });
 
-test("passes when SMTP config is complete with APPROVAL_FROM_EMAIL in strict mode", () => {
+test("passes when SendGrid config is complete with APPROVAL_FROM_EMAIL in strict mode", () => {
   const { validateStartupConfig } = require("../utils/startupValidation");
   process.env.NODE_ENV = "production";
   process.env.PASSWORD_RESET_REQUIRE_DELIVERY = "true";
-  process.env.SMTP_HOST = "smtp.example.com";
-  process.env.SMTP_PORT = "587";
-  process.env.SMTP_USER = "user";
-  process.env.SMTP_PASS = "pass";
+  process.env.SENDGRID_API_KEY = "SG.mock-key";
   process.env.APPROVAL_FROM_EMAIL = "info@plumedica.com";
 
   assert.equal(validateStartupConfig(), true);

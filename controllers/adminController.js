@@ -15,7 +15,7 @@ const {
   generateHospitalId,
   ensureUniqueGeneratedId,
 } = require("../utils/approvalIdGenerator");
-const { sendApprovalEmail } = require("../services/approvalEmailService");
+const { sendApprovalEmail } = require("../services/emailService");
 
 const Admin = require("../models/Admin");
 const Doctor = require("../models/Doctor");
@@ -594,6 +594,41 @@ const approveEntity = asyncHandler(async (req, res) => {
     throw new AppError("Record not found", 404);
   }
 
+  let approvalEmail = {
+    attempted: false,
+    delivered: false,
+    reason: "NOT_REQUIRED",
+    recipientEmail: pickFirstDefinedValue(record, config.emailFields),
+  };
+
+  if (entity === "doctors" || entity === "hospitals") {
+    const requestBody = req.body && typeof req.body === "object" ? req.body : {};
+    const emailPayload = {
+      name: pickFirstDefinedValue(record, config.nameFields) || "User",
+      email: pickFirstDefinedValue(record, config.emailFields),
+      generatedId: String(record.generatedId || "").trim(),
+      password: String(requestBody.password || record.password || "").trim(),
+    };
+
+    const emailResult = await sendApprovalEmail(emailPayload);
+    approvalEmail = {
+      attempted: true,
+      delivered: Boolean(emailResult?.delivered),
+      provider: String(emailResult?.provider || "sendgrid"),
+      reason: String(emailResult?.reason || ""),
+      recipientEmail: String(emailPayload.email || "").trim(),
+    };
+
+    if (!approvalEmail.delivered) {
+      console.error("[approve-entity] approval email not delivered", {
+        entity,
+        recordId: String(record._id || ""),
+        email: approvalEmail.recipientEmail,
+        reason: approvalEmail.reason || "EMAIL_NOT_DELIVERED",
+      });
+    }
+  }
+
   const notification = await notifyEntityStatusChange({
     entityKey: entity,
     record,
@@ -603,6 +638,7 @@ const approveEntity = asyncHandler(async (req, res) => {
 
   return sendResponse(res, 200, true, "Entity approved successfully", {
     item: sanitizeDoc(record),
+    approvalEmail,
     notification,
   });
 });

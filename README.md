@@ -101,13 +101,8 @@ PORT=5000
 MONGO_URI=mongodb+srv://username:password@cluster.mongodb.net/plumedica
 JWT_SECRET=replace-with-strong-secret
 
-# SMTP (required for approval/rejection emails)
-SMTP_HOST=smtp.example.com
-SMTP_PORT=587
-SMTP_SECURE=false
-SMTP_USER=apikey-or-username
-SMTP_PASS=smtp-password
-SMTP_FROM=no-reply@plumedica.com
+# SendGrid (required for approval/rejection emails)
+SENDGRID_API_KEY=SG.your-sendgrid-api-key
 APPROVAL_FROM_EMAIL=info@plumedica.com
 ```
 

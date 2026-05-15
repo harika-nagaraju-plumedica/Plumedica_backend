@@ -26,13 +26,7 @@ const validateStartupConfig = () => {
     return true;
   }
 
-  const smtpValues = [
-    process.env.SMTP_HOST,
-    process.env.SMTP_PORT,
-    process.env.SMTP_USER,
-    process.env.SMTP_PASS,
-    process.env.APPROVAL_FROM_EMAIL || process.env.SMTP_FROM,
-  ];
+  const sendGridValues = [process.env.SENDGRID_API_KEY];
 
   const twilioValues = [
     process.env.TWILIO_ACCOUNT_SID,
@@ -40,10 +34,10 @@ const validateStartupConfig = () => {
     process.env.TWILIO_FROM_NUMBER,
   ];
 
-  const smtpConfigured = validateChannel({
-    name: "SMTP",
-    values: smtpValues,
-    requiredKeys: ["SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS", "APPROVAL_FROM_EMAIL or SMTP_FROM"],
+  const sendGridConfigured = validateChannel({
+    name: "SendGrid",
+    values: sendGridValues,
+    requiredKeys: ["SENDGRID_API_KEY"],
   });
 
   const twilioConfigured = validateChannel({
@@ -52,9 +46,9 @@ const validateStartupConfig = () => {
     requiredKeys: ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_FROM_NUMBER"],
   });
 
-  if (!smtpConfigured && !twilioConfigured) {
+  if (!sendGridConfigured && !twilioConfigured) {
     throw new AppError(
-      "Password reset delivery is required but no provider is configured. Configure SMTP and/or Twilio.",
+      "Password reset delivery is required but no provider is configured. Configure SendGrid and/or Twilio.",
       500,
       "INVALID_STARTUP_CONFIGURATION"
     );

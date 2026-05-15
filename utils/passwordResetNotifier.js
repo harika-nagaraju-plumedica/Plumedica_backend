@@ -1,49 +1,22 @@
-const nodemailer = require("nodemailer");
+const sgMail = require("@sendgrid/mail");
 const twilio = require("twilio");
 
-let cachedEmailTransporter = null;
 const DEFAULT_FROM_EMAIL = "info@plumedica.com";
 
 const getFromAddress = () => {
   const fromEmail = String(
-    process.env.APPROVAL_FROM_EMAIL || process.env.SMTP_FROM || DEFAULT_FROM_EMAIL
+    process.env.APPROVAL_FROM_EMAIL || DEFAULT_FROM_EMAIL
   ).trim();
   const fromName = String(process.env.APP_NAME || "PluMedica").trim();
   return `${fromName} <${fromEmail}>`;
 };
 
 const hasFromAddress = () => {
-  return Boolean(String(process.env.APPROVAL_FROM_EMAIL || process.env.SMTP_FROM || DEFAULT_FROM_EMAIL).trim());
+  return Boolean(String(process.env.APPROVAL_FROM_EMAIL || DEFAULT_FROM_EMAIL).trim());
 };
 
 const isEmailConfigured = () => {
-  return Boolean(
-    process.env.SMTP_HOST &&
-      process.env.SMTP_PORT &&
-      process.env.SMTP_USER &&
-      process.env.SMTP_PASS &&
-      hasFromAddress()
-  );
-};
-
-const getEmailTransporter = () => {
-  if (!isEmailConfigured()) {
-    return null;
-  }
-
-  if (!cachedEmailTransporter) {
-    cachedEmailTransporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT),
-      secure: String(process.env.SMTP_SECURE || "false") === "true",
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
-  }
-
-  return cachedEmailTransporter;
+  return Boolean(String(process.env.SENDGRID_API_KEY || "").trim() && hasFromAddress());
 };
 
 const isSmsConfigured = () => {
@@ -59,26 +32,26 @@ const buildResetMessage = ({ moduleKey, token, expiresInMinutes }) => {
 };
 
 const sendEmailResetInstructions = async ({ to, moduleKey, token, expiresInMinutes }) => {
-  const transporter = getEmailTransporter();
   const message = buildResetMessage({ moduleKey, token, expiresInMinutes });
 
-  if (!transporter) {
+  if (!isEmailConfigured()) {
     if (process.env.NODE_ENV !== "production") {
       console.log("[password-reset] email fallback", { to, ...message });
       return { delivered: true, provider: "console" };
     }
 
-    return { delivered: false, provider: "smtp", reason: "SMTP_NOT_CONFIGURED" };
+    return { delivered: false, provider: "sendgrid", reason: "SENDGRID_API_KEY_MISSING" };
   }
 
-  await transporter.sendMail({
+  sgMail.setApiKey(String(process.env.SENDGRID_API_KEY || "").trim());
+  await sgMail.send({
     from: getFromAddress(),
     to,
     subject: message.subject,
     text: message.text,
   });
 
-  return { delivered: true, provider: "smtp" };
+  return { delivered: true, provider: "sendgrid" };
 };
 
 const sendSmsResetInstructions = async ({ to, moduleKey, token, expiresInMinutes }) => {

@@ -1,69 +1,48 @@
-const nodemailer = require("nodemailer");
+const sgMail = require("@sendgrid/mail");
 const EntityStatusEmailLog = require("../models/EntityStatusEmailLog");
 
-let cachedTransporter = null;
 const DEFAULT_APPROVAL_FROM_EMAIL = "info@plumedica.com";
 
 const getFromAddress = () => {
   const fromEmail = String(
-    process.env.APPROVAL_FROM_EMAIL || process.env.SMTP_FROM || DEFAULT_APPROVAL_FROM_EMAIL
+    process.env.APPROVAL_FROM_EMAIL || DEFAULT_APPROVAL_FROM_EMAIL
   ).trim();
   const fromName = String(process.env.APP_NAME || "PluMedica").trim();
   return `${fromName} <${fromEmail}>`;
 };
 
-const isSmtpConfigured = () => {
-  return Boolean(
-    process.env.SMTP_HOST &&
-      process.env.SMTP_PORT &&
-      process.env.SMTP_USER &&
-      process.env.SMTP_PASS
-  );
+const isSendGridConfigured = () => {
+  return Boolean(String(process.env.SENDGRID_API_KEY || "").trim());
 };
 
-const getMissingSmtpKeys = () => {
-  const required = ["SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS"];
+const getMissingSendGridKeys = () => {
+  const required = ["SENDGRID_API_KEY"];
   return required.filter((key) => !String(process.env[key] || "").trim());
 };
 
-const getSmtpConfigSummary = () => {
+const getSendGridConfigSummary = () => {
   return {
-    host: String(process.env.SMTP_HOST || "").trim(),
-    port: Number(process.env.SMTP_PORT || 0),
-    secure: String(process.env.SMTP_SECURE || "false") === "true",
-    hasUser: Boolean(String(process.env.SMTP_USER || "").trim()),
-    hasPass: Boolean(String(process.env.SMTP_PASS || "").trim()),
+    hasApiKey: Boolean(String(process.env.SENDGRID_API_KEY || "").trim()),
     from: getFromAddress(),
   };
 };
 
 const sanitizeEmailError = (error) => {
+  const responseBody = error?.response?.body;
+  const details = Array.isArray(responseBody?.errors)
+    ? responseBody.errors.map((entry) => ({
+        message: String(entry?.message || ""),
+        field: String(entry?.field || ""),
+      }))
+    : [];
+
   return {
-    code: String(error?.code || "UNKNOWN_ERROR"),
-    responseCode: Number(error?.responseCode || 0) || null,
-    command: String(error?.command || ""),
+    code: String(error?.code || "SENDGRID_ERROR"),
+    responseCode: Number(error?.response?.statusCode || 0) || null,
+    command: "sendgrid.send",
     message: String(error?.message || "Unknown email delivery error"),
+    details,
   };
-};
-
-const getTransporter = () => {
-  if (!isSmtpConfigured()) {
-    return null;
-  }
-
-  if (!cachedTransporter) {
-    cachedTransporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT),
-      secure: String(process.env.SMTP_SECURE || "false") === "true",
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
-  }
-
-  return cachedTransporter;
 };
 
 const buildApprovalBody = ({ recipientName, entityLabel, nextSteps }) => {
@@ -112,7 +91,11 @@ const sendEntityStatusNotification = async ({
   rejectionReason,
   nextSteps,
 }) => {
-  const transporter = getTransporter();
+  const apiKey = String(process.env.SENDGRID_API_KEY || "").trim();
+  if (apiKey) {
+    sgMail.setApiKey(apiKey);
+  }
+
   const isApproved = status === "Approved";
   const maxRetries = Math.max(Number(process.env.ENTITY_STATUS_EMAIL_MAX_RETRIES || 1), 1);
 
@@ -151,7 +134,7 @@ const sendEntityStatusNotification = async ({
     }
   };
 
-  if (!transporter) {
+  if (!apiKey) {
     if (process.env.NODE_ENV !== "production") {
       console.log("[entity-status-notification] email fallback", { to, subject, text });
       await writeLog({
@@ -165,17 +148,17 @@ const sendEntityStatusNotification = async ({
 
     await writeLog({
       deliveryStatus: "failed",
-      provider: "smtp",
+      provider: "sendgrid",
       attempts: 0,
-      errorMessage: "SMTP_NOT_CONFIGURED",
+      errorMessage: "SENDGRID_API_KEY_MISSING",
     });
-    return { delivered: false, provider: "smtp", reason: "SMTP_NOT_CONFIGURED" };
+    return { delivered: false, provider: "sendgrid", reason: "SENDGRID_API_KEY_MISSING" };
   }
 
   let lastError = null;
   for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
     try {
-      await transporter.sendMail({
+      await sgMail.send({
         from: getFromAddress(),
         to,
         subject,
@@ -184,12 +167,12 @@ const sendEntityStatusNotification = async ({
 
       await writeLog({
         deliveryStatus: "sent",
-        provider: "smtp",
+        provider: "sendgrid",
         attempts: attempt,
         errorMessage: "",
       });
 
-      return { delivered: true, provider: "smtp", attempts: attempt };
+      return { delivered: true, provider: "sendgrid", attempts: attempt };
     } catch (error) {
       lastError = error;
       console.error("[entity-status-notification] email attempt failed", {
@@ -215,34 +198,22 @@ const sendEntityStatusNotification = async ({
 
 const debugEntityStatusEmailDelivery = async ({ to } = {}) => {
   const diagnostics = {
-    smtpConfigured: isSmtpConfigured(),
-    missingKeys: getMissingSmtpKeys(),
-    config: getSmtpConfigSummary(),
+    sendGridConfigured: isSendGridConfigured(),
+    missingKeys: getMissingSendGridKeys(),
+    config: getSendGridConfigSummary(),
   };
 
-  if (!diagnostics.smtpConfigured) {
+  if (!diagnostics.sendGridConfigured) {
     return {
       ok: false,
       stage: "configuration",
       diagnostics,
       error: {
-        code: "SMTP_NOT_CONFIGURED",
+        code: "SENDGRID_API_KEY_MISSING",
         responseCode: null,
-        command: "",
-        message: "SMTP environment variables are incomplete.",
+        command: "sendgrid.send",
+        message: "SENDGRID_API_KEY is not configured.",
       },
-    };
-  }
-
-  const transporter = getTransporter();
-  try {
-    await transporter.verify();
-  } catch (error) {
-    return {
-      ok: false,
-      stage: "verify",
-      diagnostics,
-      error: sanitizeEmailError(error),
     };
   }
 
@@ -250,9 +221,9 @@ const debugEntityStatusEmailDelivery = async ({ to } = {}) => {
   if (!safeTo) {
     return {
       ok: true,
-      stage: "verify",
+      stage: "configuration",
       diagnostics,
-      message: "SMTP connection verified successfully. Provide a recipient to send a test email.",
+      message: "SendGrid is configured. Provide a recipient to send a test email.",
     };
   }
 
@@ -265,7 +236,8 @@ const debugEntityStatusEmailDelivery = async ({ to } = {}) => {
   ].join("\n");
 
   try {
-    const info = await transporter.sendMail({
+    sgMail.setApiKey(String(process.env.SENDGRID_API_KEY || "").trim());
+    const [info] = await sgMail.send({
       from: getFromAddress(),
       to: safeTo,
       subject,
@@ -276,10 +248,10 @@ const debugEntityStatusEmailDelivery = async ({ to } = {}) => {
       ok: true,
       stage: "send",
       diagnostics,
-      messageId: String(info?.messageId || ""),
-      accepted: Array.isArray(info?.accepted) ? info.accepted : [],
-      rejected: Array.isArray(info?.rejected) ? info.rejected : [],
-      response: String(info?.response || ""),
+      messageId: String(info?.headers?.["x-message-id"] || info?.headers?.["X-Message-Id"] || ""),
+      accepted: [safeTo],
+      rejected: [],
+      response: String(info?.statusCode || ""),
     };
   } catch (error) {
     return {

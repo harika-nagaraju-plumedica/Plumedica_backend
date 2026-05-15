@@ -233,7 +233,7 @@ resetPassword(module, token, newPassword, confirmPassword):
 - No `staff` module currently exists in this repository. Add a staff model and route mapping to include it in the same pattern.
 
 ## Notification Provider Integration
-- Email provider: SMTP via `nodemailer`.
+- Email provider: SendGrid via `@sendgrid/mail`.
 - SMS provider: Twilio via `twilio` package.
 - Channel selection is automatic:
   - Email identifier -> SMTP delivery.
