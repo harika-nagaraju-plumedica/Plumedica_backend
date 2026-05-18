@@ -610,7 +610,7 @@ const approveEntity = asyncHandler(async (req, res) => {
       password: String(requestBody.password || record.password || "").trim(),
     };
 
-    const emailResult = await sendApprovalEmail(emailPayload);
+    const emailResult = await sendApprovalEmail(emailPayload, "Approved");
     approvalEmail = {
       attempted: true,
       delivered: Boolean(emailResult?.delivered),
@@ -741,13 +741,16 @@ const approveUserById = asyncHandler(async (req, res) => {
   };
 
   try {
-    const emailResult = await sendApprovalEmail({
+    const emailResult = await sendApprovalEmail(
+      {
       name: candidate.name,
       email: candidate.email,
       generatedId,
       password: approvalPassword,
       loginLink,
-    });
+      },
+      "Approved"
+    );
 
     approvalEmail = {
       attempted: true,
@@ -785,6 +788,90 @@ const approveUserById = asyncHandler(async (req, res) => {
     item: sanitizeDoc(candidate.doc),
     approvalRecord: approvalSnapshot,
     approvalEmail,
+  });
+});
+
+const updateStatus = asyncHandler(async (req, res) => {
+  const id = parseObjectIdParam(req.params.id);
+  const body = req.body && typeof req.body === "object" ? req.body : {};
+  const nextStatus = normalizeStatus(body.status);
+
+  if (!nextStatus || (nextStatus !== "Approved" && nextStatus !== "Rejected")) {
+    throw new AppError("status must be either Approved or Rejected", 400);
+  }
+
+  const candidate = await getApprovalCandidateById(id);
+  if (!candidate) {
+    throw new AppError("User not found", 404);
+  }
+
+  const updatePayload = {
+    status: nextStatus,
+  };
+
+  if (Object.prototype.hasOwnProperty.call(candidate.doc.toObject(), "rejectionReason")) {
+    updatePayload.rejectionReason = nextStatus === "Rejected" ? String(body.rejectionReason || "").trim() : "";
+  }
+
+  const updatedUser = await candidate.model.findByIdAndUpdate(
+    id,
+    { $set: updatePayload },
+    { new: true }
+  );
+
+  if (!updatedUser) {
+    throw new AppError("User not found", 404);
+  }
+
+  const requestPassword = String(body.password || "").trim();
+  const persistedPassword = String(updatedUser.password || "").trim();
+  const emailPassword = requestPassword || (BCRYPT_HASH_REGEX.test(persistedPassword) ? "" : persistedPassword);
+
+  const emailPayload = {
+    name: candidate.name || updatedUser.fullName || updatedUser.hospitalName || "User",
+    email: candidate.email || updatedUser.email,
+    generatedId: String(updatedUser.generatedId || "").trim(),
+    password: emailPassword,
+  };
+
+  const emailResult = await sendApprovalEmail(emailPayload, nextStatus);
+  if (emailResult?.delivered) {
+    console.info("[admin-update-status] status updated and email sent", {
+      userId: String(updatedUser._id || ""),
+      role: candidate.role,
+      status: nextStatus,
+      recipientEmail: emailPayload.email,
+    });
+  } else {
+    console.error("[admin-update-status] status updated but email failed", {
+      userId: String(updatedUser._id || ""),
+      role: candidate.role,
+      status: nextStatus,
+      recipientEmail: emailPayload.email,
+      reason: String(emailResult?.reason || "EMAIL_NOT_DELIVERED"),
+    });
+  }
+
+  const approvalSnapshot = await ApprovalUser.findOneAndUpdate(
+    { role: candidate.role, email: candidate.email },
+    {
+      $set: {
+        status: nextStatus.toLowerCase(),
+      },
+    },
+    { new: true }
+  ).lean();
+
+  return sendResponse(res, 200, true, "Status updated successfully", {
+    item: sanitizeDoc(updatedUser),
+    approvalRecord: approvalSnapshot,
+    approvalEmail: {
+      attempted: true,
+      delivered: Boolean(emailResult?.delivered),
+      provider: String(emailResult?.provider || "sendgrid"),
+      reason: String(emailResult?.reason || ""),
+      recipientEmail: String(emailPayload.email || "").trim(),
+    },
   });
 });
 
@@ -925,6 +1012,7 @@ module.exports = {
   approveEntity,
   rejectEntity,
   approveUserById,
+  updateStatus,
   debugEmailDelivery,
   createAdmin,
   listAdmins,

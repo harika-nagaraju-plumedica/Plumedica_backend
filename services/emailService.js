@@ -2,19 +2,33 @@ const sgMail = require("@sendgrid/mail");
 
 const SENDER_EMAIL = "chakanamanikantaplumedica@gmail.com";
 
-const sendApprovalEmail = async (user) => {
+const sendApprovalEmail = async (user, status) => {
   const payload = user && typeof user === "object" ? user : {};
   const name = String(payload.name || "").trim();
   const email = String(payload.email || "").trim().toLowerCase();
   const generatedId = String(payload.generatedId || "").trim();
   const password = String(payload.password || "").trim();
+  const normalizedStatus = String(status || "").trim().toLowerCase();
+  const isApproved = normalizedStatus === "approved";
+  const isRejected = normalizedStatus === "rejected";
 
-  if (!name || !email || !generatedId || !password) {
+  if (!isApproved && !isRejected) {
+    const reason = "INVALID_STATUS";
+    console.error("[send-approval-email] invalid status", { email, reason, status });
+    return {
+      delivered: false,
+      provider: "sendgrid",
+      reason,
+      recipientEmail: email,
+    };
+  }
+
+  if (!name || !email) {
     const missingFields = [];
     if (!name) missingFields.push("name");
     if (!email) missingFields.push("email");
-    if (!generatedId) missingFields.push("generatedId");
-    if (!password) missingFields.push("password");
+    if (isApproved && !generatedId) missingFields.push("generatedId");
+    if (isApproved && !password) missingFields.push("password");
 
     const reason = "MISSING_FIELDS:" + missingFields.join(",");
     console.error("[send-approval-email] invalid payload", { email, reason });
@@ -39,23 +53,27 @@ const sendApprovalEmail = async (user) => {
 
   sgMail.setApiKey(apiKey);
 
-  const text = [
-    "Hello " + name + ", your registration has been APPROVED.",
-    "Your ID: " + generatedId,
-    "Your Password: " + password,
-  ].join("\n");
+  const subject = "Plumedica Status Update";
+  const text = isApproved
+    ? [
+        "Hello " + name + ",",
+        "Your registration is APPROVED.",
+        "Your ID: " + generatedId,
+        "Your Password: " + password,
+      ].join("\n")
+    : ["Hello " + name + ",", "Your registration is REJECTED."].join("\n");
 
   try {
     await sgMail.send({
       to: email,
       from: SENDER_EMAIL,
-      subject: "Plumedica Status Update",
+      subject,
       text,
     });
 
     console.info("[send-approval-email] email sent", {
       recipientEmail: email,
-      generatedId,
+      status: isApproved ? "Approved" : "Rejected",
     });
 
     return {
@@ -73,7 +91,7 @@ const sendApprovalEmail = async (user) => {
 
     console.error("[send-approval-email] failed", {
       recipientEmail: email,
-      generatedId,
+      status: isApproved ? "Approved" : "Rejected",
       error: parsedError,
     });
 
