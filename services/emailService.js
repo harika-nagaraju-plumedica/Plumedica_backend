@@ -2,12 +2,14 @@ const sgMail = require("@sendgrid/mail");
 
 const SENDER_EMAIL = "chakanamanikantaplumedica@gmail.com";
 
-const sendStatusEmail = async (user, status) => {
+const sendStatusEmail = async (user, status, reason = "") => {
   const payload = user && typeof user === "object" ? user : {};
   const name = String(payload.name || "").trim();
   const email = String(payload.email || "").trim().toLowerCase();
   const generatedId = String(payload.generatedId || "").trim();
   const password = String(payload.password || "").trim();
+  const rejectionReason = String(reason || "").trim();
+  const loginLink = String(process.env.APP_LOGIN_URL || "https://your-app-link.com").trim();
   const normalizedStatus = String(status || "").trim().toLowerCase();
   const isApproved = normalizedStatus === "approved";
   const isRejected = normalizedStatus === "rejected";
@@ -55,11 +57,23 @@ const sendStatusEmail = async (user, status) => {
   const text = isApproved
     ? [
         "Hello " + name + ",",
+        "",
         "Your registration is APPROVED.",
+        "",
         generatedId ? "Your ID: " + generatedId : "",
         password ? "Your Password: " + password : "",
+        "",
+        "Login: " + loginLink,
       ].join("\n")
-    : ["Hello " + name + ",", "Your registration is REJECTED."].join("\n");
+    : [
+        "Hello " + name + ",",
+        "",
+        "Your registration is REJECTED.",
+        "",
+        "Reason: " + (rejectionReason || "Not specified"),
+        "",
+        "Please contact support.",
+      ].join("\n");
 
   try {
     await sgMail.send({

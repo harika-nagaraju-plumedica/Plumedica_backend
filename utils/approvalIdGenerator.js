@@ -3,18 +3,12 @@ const AppError = require("./AppError");
 const getDigitsOnly = (value) => String(value || "").replace(/\D/g, "");
 
 const generateNameAbbreviation = (name) => {
-  const parts = String(name || "")
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-
-  if (!parts.length) {
+  const cleaned = String(name || "").replace(/[^A-Za-z]/g, "").toUpperCase();
+  if (!cleaned) {
     throw new AppError("Name is required for ID generation", 400);
   }
 
-  return parts
-    .map((part) => part.charAt(0).toUpperCase())
-    .join("");
+  return cleaned.slice(0, 2).padEnd(2, "X");
 };
 
 const extractLastTwoDigits = (value, fieldName) => {
@@ -58,25 +52,52 @@ const generatePatientId = ({ name, dob, phone }) => {
   const nameAbbreviation = generateNameAbbreviation(name);
   const birthYear = extractYearLastTwoDigits(dob, "dob");
   const phoneSuffix = extractLastTwoDigits(phone, "phone");
-  return `${nameAbbreviation}-${birthYear}-${phoneSuffix}`;
+  return `${nameAbbreviation}${birthYear}${phoneSuffix}`;
 };
 
 const generateDoctorId = ({ name, registrationYear, phone }) => {
   const nameAbbreviation = generateNameAbbreviation(name);
   const yearSuffix = extractYearLastTwoDigits(registrationYear, "registrationYear");
   const phoneSuffix = extractLastTwoDigits(phone, "phone");
-  return `${nameAbbreviation}-${yearSuffix}-${phoneSuffix}`;
+  return `${nameAbbreviation}${yearSuffix}${phoneSuffix}`;
 };
 
 const generateHospitalId = ({ name, registrationYear, phone }) => {
-  const normalizedName = String(name || "").replace(/\s+/g, "").toUpperCase();
-  if (!normalizedName) {
-    throw new AppError("Hospital name is required for ID generation", 400);
-  }
-
+  const nameAbbreviation = generateNameAbbreviation(name);
   const year = extractYearFull(registrationYear, "registrationYear");
   const phoneSuffix = extractLastTwoDigits(phone, "phone");
-  return `${normalizedName}-${year}-${phoneSuffix}`;
+  return `${nameAbbreviation}${year}${phoneSuffix}`;
+};
+
+const generateId = (user, type) => {
+  const payload = user && typeof user === "object" ? user : {};
+  const normalizedType = String(type || "").trim().toLowerCase();
+
+  if (normalizedType === "patient") {
+    return generatePatientId({
+      name: payload.name,
+      dob: payload.dob,
+      phone: payload.mobile || payload.phone,
+    });
+  }
+
+  if (normalizedType === "doctor") {
+    return generateDoctorId({
+      name: payload.name,
+      registrationYear: payload.registrationYear,
+      phone: payload.mobile || payload.phone,
+    });
+  }
+
+  if (normalizedType === "hospital") {
+    return generateHospitalId({
+      name: payload.name,
+      registrationYear: payload.registrationYear,
+      phone: payload.mobile || payload.phone,
+    });
+  }
+
+  throw new AppError("Invalid type for ID generation", 400);
 };
 
 const generateRandomTwoDigits = () => String(Math.floor(Math.random() * 100)).padStart(2, "0");
@@ -104,6 +125,7 @@ const ensureUniqueGeneratedId = async ({ model, baseId, maxAttempts = 50 }) => {
 };
 
 module.exports = {
+  generateId,
   generateNameAbbreviation,
   extractLastTwoDigits,
   extractYearLastTwoDigits,

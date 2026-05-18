@@ -586,7 +586,7 @@ const rejectEntity = asyncHandler(async (req, res) => {
     password: "",
   };
 
-  const emailResult = await sendStatusEmail(emailPayload, "Rejected");
+  const emailResult = await sendStatusEmail(emailPayload, "Rejected", rejectionReason);
   const rejectionEmail = {
     attempted: true,
     delivered: Boolean(emailResult?.delivered),
@@ -719,6 +719,7 @@ const updateStatus = asyncHandler(async (req, res) => {
   const id = parseObjectIdParam(req.params.id);
   const body = req.body && typeof req.body === "object" ? req.body : {};
   const nextStatus = normalizeStatus(body.status);
+  const reason = String(body.reason || body.rejectionReason || "").trim();
 
   if (!nextStatus || (nextStatus !== "Approved" && nextStatus !== "Rejected")) {
     throw new AppError("status must be either Approved or Rejected", 400);
@@ -734,7 +735,17 @@ const updateStatus = asyncHandler(async (req, res) => {
   };
 
   if (Object.prototype.hasOwnProperty.call(candidate.doc.toObject(), "rejectionReason")) {
-    updatePayload.rejectionReason = nextStatus === "Rejected" ? String(body.rejectionReason || "").trim() : "";
+    updatePayload.rejectionReason = nextStatus === "Rejected" ? reason : "";
+  }
+
+  if (nextStatus === "Approved") {
+    const existingGeneratedId = String(candidate.doc.generatedId || "").trim().toUpperCase();
+    updatePayload.generatedId = existingGeneratedId
+      ? existingGeneratedId
+      : await ensureUniqueGeneratedId({
+          model: candidate.model,
+          baseId: buildGeneratedId(candidate),
+        });
   }
 
   const updatedUser = await candidate.model.findByIdAndUpdate(
@@ -758,7 +769,7 @@ const updateStatus = asyncHandler(async (req, res) => {
     password: emailPassword,
   };
 
-  const emailResult = await sendStatusEmail(emailPayload, nextStatus);
+  const emailResult = await sendStatusEmail(emailPayload, nextStatus, reason);
   if (emailResult?.delivered) {
     console.info("[admin-update-status] status updated and email sent", {
       userId: String(updatedUser._id || ""),
@@ -780,10 +791,17 @@ const updateStatus = asyncHandler(async (req, res) => {
     { role: candidate.role, email: candidate.email },
     {
       $set: {
+        name: candidate.name,
+        email: candidate.email,
+        phone: candidate.phone,
+        dob: candidate.dob || null,
+        registrationYear: candidate.registrationYear || null,
+        role: candidate.role,
+        generatedId: String(updatedUser.generatedId || "").trim().toUpperCase(),
         status: nextStatus.toLowerCase(),
       },
     },
-    { new: true }
+    { new: true, upsert: true, setDefaultsOnInsert: true }
   ).lean();
 
   return sendResponse(res, 200, true, "Status updated successfully", {
