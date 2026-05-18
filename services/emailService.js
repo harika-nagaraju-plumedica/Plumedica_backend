@@ -2,7 +2,7 @@ const sgMail = require("@sendgrid/mail");
 
 const SENDER_EMAIL = "chakanamanikantaplumedica@gmail.com";
 
-const sendApprovalEmail = async (user, status) => {
+const sendStatusEmail = async (user, status) => {
   const payload = user && typeof user === "object" ? user : {};
   const name = String(payload.name || "").trim();
   const email = String(payload.email || "").trim().toLowerCase();
@@ -14,7 +14,7 @@ const sendApprovalEmail = async (user, status) => {
 
   if (!isApproved && !isRejected) {
     const reason = "INVALID_STATUS";
-    console.error("[send-approval-email] invalid status", { email, reason, status });
+    console.error("[send-status-email] invalid status", { email, reason, status });
     return {
       delivered: false,
       provider: "sendgrid",
@@ -27,11 +27,9 @@ const sendApprovalEmail = async (user, status) => {
     const missingFields = [];
     if (!name) missingFields.push("name");
     if (!email) missingFields.push("email");
-    if (isApproved && !generatedId) missingFields.push("generatedId");
-    if (isApproved && !password) missingFields.push("password");
 
     const reason = "MISSING_FIELDS:" + missingFields.join(",");
-    console.error("[send-approval-email] invalid payload", { email, reason });
+    console.error("[send-status-email] invalid payload", { email, reason });
     return {
       delivered: false,
       provider: "sendgrid",
@@ -42,7 +40,7 @@ const sendApprovalEmail = async (user, status) => {
 
   const apiKey = String(process.env.SENDGRID_API_KEY || "").trim();
   if (!apiKey) {
-    console.error("[send-approval-email] SENDGRID_API_KEY is not configured");
+    console.error("[send-status-email] SENDGRID_API_KEY is not configured");
     return {
       delivered: false,
       provider: "sendgrid",
@@ -58,8 +56,8 @@ const sendApprovalEmail = async (user, status) => {
     ? [
         "Hello " + name + ",",
         "Your registration is APPROVED.",
-        "Your ID: " + generatedId,
-        "Your Password: " + password,
+        generatedId ? "Your ID: " + generatedId : "",
+        password ? "Your Password: " + password : "",
       ].join("\n")
     : ["Hello " + name + ",", "Your registration is REJECTED."].join("\n");
 
@@ -68,10 +66,13 @@ const sendApprovalEmail = async (user, status) => {
       to: email,
       from: SENDER_EMAIL,
       subject,
-      text,
+      text: text
+        .split("\n")
+        .filter(Boolean)
+        .join("\n"),
     });
 
-    console.info("[send-approval-email] email sent", {
+    console.info("[send-status-email] email sent", {
       recipientEmail: email,
       status: isApproved ? "Approved" : "Rejected",
     });
@@ -87,12 +88,13 @@ const sendApprovalEmail = async (user, status) => {
       message: String(error?.message || "Unknown SendGrid error"),
       statusCode: Number(error?.response?.statusCode || 0) || null,
       code: String(error?.code || "SENDGRID_ERROR"),
+      body: error?.response?.body || null,
     };
 
-    console.error("[send-approval-email] failed", {
+    console.error("[send-status-email] failed", {
       recipientEmail: email,
       status: isApproved ? "Approved" : "Rejected",
-      error: parsedError,
+      error: error?.response?.body || error?.message,
     });
 
     return {
@@ -106,5 +108,5 @@ const sendApprovalEmail = async (user, status) => {
 };
 
 module.exports = {
-  sendApprovalEmail,
+  sendStatusEmail,
 };

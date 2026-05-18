@@ -6,16 +6,12 @@ const AppError = require("../utils/AppError");
 const { generateToken } = require("../utils/token");
 const { validateRequiredFields } = require("../utils/validation");
 const {
-  sendEntityStatusNotification,
-  debugEntityStatusEmailDelivery,
-} = require("../services/entityStatusNotificationService");
-const {
   generatePatientId,
   generateDoctorId,
   generateHospitalId,
   ensureUniqueGeneratedId,
 } = require("../utils/approvalIdGenerator");
-const { sendApprovalEmail } = require("../services/emailService");
+const { sendStatusEmail } = require("../services/emailService");
 
 const Admin = require("../models/Admin");
 const Doctor = require("../models/Doctor");
@@ -134,78 +130,6 @@ const pickFirstDefinedValue = (record, fields = []) => {
   }
 
   return "";
-};
-
-const notifyEntityStatusChange = async ({ entityKey, record, config, status, rejectionReason }) => {
-  const recipientEmail = pickFirstDefinedValue(record, config.emailFields);
-  if (!recipientEmail) {
-    console.error("[admin-approval] status updated but no email found", {
-      entityLabel: config.entityLabel,
-      recordId: String(record?._id || ""),
-      status,
-    });
-    return {
-      attempted: false,
-      delivered: false,
-      reason: "RECIPIENT_EMAIL_NOT_FOUND",
-      recipientEmail: "",
-    };
-  }
-
-  const recipientName = pickFirstDefinedValue(record, config.nameFields) || "User";
-
-  try {
-    const delivery = await sendEntityStatusNotification({
-      entityKey,
-      recordId: record?._id,
-      to: recipientEmail,
-      recipientName,
-      entityLabel: config.entityLabel,
-      status,
-      rejectionReason,
-      nextSteps: status === "Approved" ? config.approvalNextSteps : "",
-    });
-
-    if (!delivery?.delivered) {
-      const reason = String(delivery?.reason || "EMAIL_NOT_DELIVERED");
-      console.error("[admin-approval] status email not delivered", {
-        entityLabel: config.entityLabel,
-        recordId: String(record?._id || ""),
-        status,
-        recipientEmail,
-        reason,
-      });
-
-      return {
-        attempted: true,
-        delivered: false,
-        reason,
-        recipientEmail,
-      };
-    }
-
-    return {
-      attempted: true,
-      delivered: true,
-      provider: delivery?.provider || "smtp",
-      recipientEmail,
-    };
-  } catch (error) {
-    console.error("[admin-approval] failed to send status notification", {
-      entityLabel: config.entityLabel,
-      recordId: String(record?._id || ""),
-      status,
-      recipientEmail,
-      error: error?.message || error,
-    });
-
-    return {
-      attempted: true,
-      delivered: false,
-      reason: String(error?.message || "EMAIL_DELIVERY_ERROR"),
-      recipientEmail,
-    };
-  }
 };
 
 const buildSearchQuery = (searchValue, fields) => {
@@ -594,52 +518,35 @@ const approveEntity = asyncHandler(async (req, res) => {
     throw new AppError("Record not found", 404);
   }
 
-  let approvalEmail = {
-    attempted: false,
-    delivered: false,
-    reason: "NOT_REQUIRED",
-    recipientEmail: pickFirstDefinedValue(record, config.emailFields),
+  const requestBody = req.body && typeof req.body === "object" ? req.body : {};
+  const emailPayload = {
+    name: pickFirstDefinedValue(record, config.nameFields) || "User",
+    email: pickFirstDefinedValue(record, config.emailFields),
+    generatedId: String(record.generatedId || "").trim(),
+    password: String(requestBody.password || record.password || "").trim(),
   };
 
-  if (entity === "doctors" || entity === "hospitals") {
-    const requestBody = req.body && typeof req.body === "object" ? req.body : {};
-    const emailPayload = {
-      name: pickFirstDefinedValue(record, config.nameFields) || "User",
-      email: pickFirstDefinedValue(record, config.emailFields),
-      generatedId: String(record.generatedId || "").trim(),
-      password: String(requestBody.password || record.password || "").trim(),
-    };
+  const emailResult = await sendStatusEmail(emailPayload, "Approved");
+  const approvalEmail = {
+    attempted: true,
+    delivered: Boolean(emailResult?.delivered),
+    provider: String(emailResult?.provider || "sendgrid"),
+    reason: String(emailResult?.reason || ""),
+    recipientEmail: String(emailPayload.email || "").trim(),
+  };
 
-    const emailResult = await sendApprovalEmail(emailPayload, "Approved");
-    approvalEmail = {
-      attempted: true,
-      delivered: Boolean(emailResult?.delivered),
-      provider: String(emailResult?.provider || "sendgrid"),
-      reason: String(emailResult?.reason || ""),
-      recipientEmail: String(emailPayload.email || "").trim(),
-    };
-
-    if (!approvalEmail.delivered) {
-      console.error("[approve-entity] approval email not delivered", {
-        entity,
-        recordId: String(record._id || ""),
-        email: approvalEmail.recipientEmail,
-        reason: approvalEmail.reason || "EMAIL_NOT_DELIVERED",
-      });
-    }
+  if (!approvalEmail.delivered) {
+    console.error("[approve-entity] approval email not delivered", {
+      entity,
+      recordId: String(record._id || ""),
+      email: approvalEmail.recipientEmail,
+      reason: approvalEmail.reason || "EMAIL_NOT_DELIVERED",
+    });
   }
-
-  const notification = await notifyEntityStatusChange({
-    entityKey: entity,
-    record,
-    config,
-    status: "Approved",
-  });
 
   return sendResponse(res, 200, true, "Entity approved successfully", {
     item: sanitizeDoc(record),
     approvalEmail,
-    notification,
   });
 });
 
@@ -672,17 +579,34 @@ const rejectEntity = asyncHandler(async (req, res) => {
     throw new AppError("Record not found", 404);
   }
 
-  const notification = await notifyEntityStatusChange({
-    entityKey: entity,
-    record,
-    config,
-    status: "Rejected",
-    rejectionReason,
-  });
+  const emailPayload = {
+    name: pickFirstDefinedValue(record, config.nameFields) || "User",
+    email: pickFirstDefinedValue(record, config.emailFields),
+    generatedId: String(record.generatedId || "").trim(),
+    password: "",
+  };
+
+  const emailResult = await sendStatusEmail(emailPayload, "Rejected");
+  const rejectionEmail = {
+    attempted: true,
+    delivered: Boolean(emailResult?.delivered),
+    provider: String(emailResult?.provider || "sendgrid"),
+    reason: String(emailResult?.reason || ""),
+    recipientEmail: String(emailPayload.email || "").trim(),
+  };
+
+  if (!rejectionEmail.delivered) {
+    console.error("[reject-entity] rejection email not delivered", {
+      entity,
+      recordId: String(record._id || ""),
+      email: rejectionEmail.recipientEmail,
+      reason: rejectionEmail.reason || "EMAIL_NOT_DELIVERED",
+    });
+  }
 
   return sendResponse(res, 200, true, "Entity rejected successfully", {
     item: sanitizeDoc(record),
-    notification,
+    rejectionEmail,
   });
 });
 
@@ -741,7 +665,7 @@ const approveUserById = asyncHandler(async (req, res) => {
   };
 
   try {
-    const emailResult = await sendApprovalEmail(
+    const emailResult = await sendStatusEmail(
       {
       name: candidate.name,
       email: candidate.email,
@@ -834,7 +758,7 @@ const updateStatus = asyncHandler(async (req, res) => {
     password: emailPassword,
   };
 
-  const emailResult = await sendApprovalEmail(emailPayload, nextStatus);
+  const emailResult = await sendStatusEmail(emailPayload, nextStatus);
   if (emailResult?.delivered) {
     console.info("[admin-update-status] status updated and email sent", {
       userId: String(updatedUser._id || ""),
@@ -873,23 +797,6 @@ const updateStatus = asyncHandler(async (req, res) => {
       recipientEmail: String(emailPayload.email || "").trim(),
     },
   });
-});
-
-const debugEmailDelivery = asyncHandler(async (req, res) => {
-  const body = req.body && typeof req.body === "object" ? req.body : {};
-  const to = String(body.to || "").trim();
-  const result = await debugEntityStatusEmailDelivery({ to });
-
-  return sendResponse(
-    res,
-    200,
-    result.ok,
-    result.ok ? "Email diagnostics completed" : "Email diagnostics failed",
-    {
-      diagnostics: result,
-    },
-    result.ok ? null : "EMAIL_DIAGNOSTICS_FAILED"
-  );
 });
 
 const createAdmin = asyncHandler(async (req, res) => {
@@ -1013,7 +920,6 @@ module.exports = {
   rejectEntity,
   approveUserById,
   updateStatus,
-  debugEmailDelivery,
   createAdmin,
   listAdmins,
   updateAdmin,

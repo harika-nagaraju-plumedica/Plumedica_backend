@@ -8,7 +8,6 @@ const {
   rejectEntity,
   approveUserById,
   updateStatus,
-  debugEmailDelivery,
 } = require("../controllers/adminController");
 const auth = require("../middleware/auth");
 const adminOnly = require("../middleware/admin");
@@ -23,7 +22,6 @@ router.use(auth, adminOnly);
 router.get("/dashboard", requireAdminPermission("DASHBOARD"), getDashboard);
 router.post("/approve-user/:id", requireAdminPermission("APPROVALS"), approveUserById);
 router.put("/update-status/:id", requireAdminPermission("APPROVALS"), updateStatus);
-router.post("/email-delivery-debug", requireAdminPermission("SETTINGS"), debugEmailDelivery);
 router.get("/:entity", requireEntityPermission(), listEntities);
 router.get("/:entity/:id", requireEntityPermission(), getEntityDetails);
 router.put("/:entity/approve", requireEntityPermission(), approveEntity);
