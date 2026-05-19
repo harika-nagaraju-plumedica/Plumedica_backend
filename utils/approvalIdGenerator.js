@@ -90,10 +90,40 @@ const generateHospitalId = ({ name, registrationYear, phone }) => {
   return `${nameAbbreviation}${year}${phoneSuffix}`;
 };
 
-const generateUserId = ({ name, registrationYear, mobile }) => {
+const generateUserId = (user) => {
+  const payload = user && typeof user === "object" ? user : {};
+
+  const name = String(payload.name || "").trim();
+  const registrationYearValue = payload.registrationYear;
+  const mobile = String(payload.mobile || "").trim();
+
+  if (!name) {
+    throw new AppError("name is required for ID generation", 400);
+  }
+
+  if (registrationYearValue === null || registrationYearValue === undefined || registrationYearValue === "") {
+    throw new AppError("registrationYear is required for ID generation", 400);
+  }
+
+  if (!mobile) {
+    throw new AppError("mobile is required for ID generation", 400);
+  }
+
   const initials = generateInitialsPrefix(name);
-  const yearSuffix = extractYearLastTwoDigits(registrationYear, "registrationYear");
+
+  let fullYear = "";
+  const normalizedYearInput = String(registrationYearValue).trim();
+  if (/^\d{4}$/.test(normalizedYearInput)) {
+    fullYear = normalizedYearInput;
+  } else if (registrationYearValue instanceof Date || !Number.isNaN(new Date(registrationYearValue).getTime())) {
+    fullYear = String(new Date(registrationYearValue).getFullYear());
+  } else {
+    fullYear = normalizedYearInput;
+  }
+
+  const yearSuffix = extractYearLastTwoDigits(fullYear, "registrationYear");
   const mobileLastTwo = extractLastTwoDigits(mobile, "mobile");
+
   return `${initials}${yearSuffix}${mobileLastTwo}`;
 };
 
