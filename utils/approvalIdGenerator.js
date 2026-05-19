@@ -11,6 +11,27 @@ const generateNameAbbreviation = (name) => {
   return cleaned.slice(0, 2).padEnd(2, "X");
 };
 
+const generateInitialsPrefix = (name) => {
+  const normalized = String(name || "").trim();
+  if (!normalized) {
+    throw new AppError("Name is required for ID generation", 400);
+  }
+
+  const initials = normalized
+    .split(/\s+/)
+    .map((part) => String(part || "").replace(/[^A-Za-z]/g, ""))
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+
+  if (initials.length >= 2) {
+    return initials.slice(0, 2);
+  }
+
+  return generateNameAbbreviation(normalized);
+};
+
 const extractLastTwoDigits = (value, fieldName) => {
   const digits = getDigitsOnly(value);
   if (!digits.length) {
@@ -67,6 +88,13 @@ const generateHospitalId = ({ name, registrationYear, phone }) => {
   const year = extractYearFull(registrationYear, "registrationYear");
   const phoneSuffix = extractLastTwoDigits(phone, "phone");
   return `${nameAbbreviation}${year}${phoneSuffix}`;
+};
+
+const generateUserId = ({ name, registrationYear, mobile }) => {
+  const initials = generateInitialsPrefix(name);
+  const yearSuffix = extractYearLastTwoDigits(registrationYear, "registrationYear");
+  const mobileLastTwo = extractLastTwoDigits(mobile, "mobile");
+  return `${initials}${yearSuffix}${mobileLastTwo}`;
 };
 
 const generateId = (user, type) => {
@@ -126,7 +154,9 @@ const ensureUniqueGeneratedId = async ({ model, baseId, maxAttempts = 50 }) => {
 
 module.exports = {
   generateId,
+  generateUserId,
   generateNameAbbreviation,
+  generateInitialsPrefix,
   extractLastTwoDigits,
   extractYearLastTwoDigits,
   generatePatientId,

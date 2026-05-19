@@ -10,7 +10,7 @@ const approvalUserSchema = new mongoose.Schema(
     role: {
       type: String,
       required: true,
-      enum: ["patient", "doctor", "hospital"],
+      enum: ["patient", "doctor", "hospital", "pharmacy", "employer"],
       lowercase: true,
       trim: true,
     },

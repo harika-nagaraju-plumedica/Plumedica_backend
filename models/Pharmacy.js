@@ -9,10 +9,12 @@ const pharmacySchema = new mongoose.Schema(
     state: { type: String, required: true, trim: true },
     city: { type: String, required: true, trim: true },
     phoneNumber: { type: String, required: true, trim: true },
+    registrationYear: { type: Number, min: 1900, max: 3000 },
     gstNumber: { type: String, required: true, trim: true, uppercase: true, unique: true },
     hasDrugLicense: { type: Boolean, default: false },
     gstCertificate: { type: String, required: true },
     drugLicense: { type: String, default: null },
+    generatedId: { type: String, trim: true, uppercase: true, unique: true, sparse: true },
     status: {
       type: String,
       enum: ["Pending", "Approved", "Rejected"],
@@ -27,5 +29,6 @@ pharmacySchema.index({ status: 1, createdAt: -1 });
 pharmacySchema.index({ legalPharmacyName: 1 });
 pharmacySchema.index({ email: 1 });
 pharmacySchema.index({ city: 1 });
+pharmacySchema.index({ generatedId: 1 });
 
 module.exports = mongoose.model("Pharmacy", pharmacySchema);

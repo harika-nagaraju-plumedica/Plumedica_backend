@@ -8,7 +8,7 @@ const { generateToken } = require("../../utils/token");
 const { normalizeEmail, findMatchesByEmail } = require("../../utils/authModules");
 
 const registerEmployer = asyncHandler(async (req, res) => {
-  const requiredFields = ["companyName", "email", "password"];
+  const requiredFields = ["companyName", "email", "password", "mobile", "registrationYear"];
   const missingFields = validateRequiredFields(req.body, requiredFields);
 
   if (missingFields.length) {

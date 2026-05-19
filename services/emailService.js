@@ -9,7 +9,9 @@ const sendStatusEmail = async (user, status, reason = "") => {
   const generatedId = String(payload.generatedId || "").trim();
   const password = String(payload.password || "").trim();
   const rejectionReason = String(reason || "").trim();
-  const loginLink = String(process.env.APP_LOGIN_URL || "https://your-app-link.com").trim();
+  const loginLink = String(
+    payload.loginLink || process.env.APP_LOGIN_URL || process.env.FRONTEND_LOGIN_URL || "https://your-app-link.com"
+  ).trim();
   const normalizedStatus = String(status || "").trim().toLowerCase();
   const isApproved = normalizedStatus === "approved";
   const isRejected = normalizedStatus === "rejected";
@@ -58,17 +60,17 @@ const sendStatusEmail = async (user, status, reason = "") => {
     ? [
         "Hello " + name + ",",
         "",
-        "Your registration is APPROVED.",
+        "Your registration is APPROVED ✅",
         "",
-        generatedId ? "Your ID: " + generatedId : "",
-        password ? "Your Password: " + password : "",
+        "Your ID: " + (generatedId || "Not generated"),
+        "Password: " + (password || "Use the password you set during registration"),
         "",
         "Login: " + loginLink,
       ].join("\n")
     : [
         "Hello " + name + ",",
         "",
-        "Your registration is REJECTED.",
+        "Your registration is REJECTED ❌",
         "",
         "Reason: " + (rejectionReason || "Not specified"),
         "",

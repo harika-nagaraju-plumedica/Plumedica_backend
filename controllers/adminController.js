@@ -7,8 +7,7 @@ const { generateToken } = require("../utils/token");
 const { validateRequiredFields } = require("../utils/validation");
 const {
   generatePatientId,
-  generateDoctorId,
-  generateHospitalId,
+  generateUserId,
   ensureUniqueGeneratedId,
 } = require("../utils/approvalIdGenerator");
 const { sendStatusEmail } = require("../services/emailService");
@@ -83,6 +82,7 @@ const ENTITY_CONFIG = {
 };
 
 const REGULATED_ENTITY_KEYS = ["doctors", "hospitals", "pharmacies", "insurance", "employers"];
+const COMMON_ID_ENTITY_KEYS = ["doctors", "hospitals", "pharmacies", "employers"];
 const ALLOWED_STATUSES = ["Pending", "Approved", "Rejected"];
 
 const BCRYPT_HASH_REGEX = /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/;
@@ -260,10 +260,12 @@ const resolveEntityId = (req) => {
 };
 
 const getApprovalCandidateById = async (id) => {
-  const [patient, doctor, hospital] = await Promise.all([
+  const [patient, doctor, hospital, pharmacy, employer] = await Promise.all([
     Patient.findById(id),
     Doctor.findById(id),
     Hospital.findById(id),
+    Pharmacy.findById(id),
+    Employer.findById(id),
   ]);
 
   if (patient) {
@@ -307,6 +309,74 @@ const getApprovalCandidateById = async (id) => {
     };
   }
 
+  if (pharmacy) {
+    const fallbackYear = pharmacy.createdAt instanceof Date ? pharmacy.createdAt.getFullYear() : null;
+    return {
+      role: "pharmacy",
+      model: Pharmacy,
+      doc: pharmacy,
+      name: pharmacy.legalPharmacyName,
+      phone: pharmacy.phoneNumber,
+      email: pharmacy.email,
+      dob: null,
+      registrationYear: pharmacy.registrationYear || fallbackYear,
+    };
+  }
+
+  if (employer) {
+    const fallbackYear = employer.createdAt instanceof Date ? employer.createdAt.getFullYear() : null;
+    return {
+      role: "employer",
+      model: Employer,
+      doc: employer,
+      name: employer.companyName,
+      phone: employer.mobile || employer.phoneNumber || employer.phone,
+      email: employer.email,
+      dob: null,
+      registrationYear: employer.registrationYear || fallbackYear,
+    };
+  }
+
+  return null;
+};
+
+const buildCommonIdCandidateFromEntity = (entity, record) => {
+  if (entity === "doctors") {
+    const fallbackYear = record.createdAt instanceof Date ? record.createdAt.getFullYear() : null;
+    return {
+      name: record.fullName,
+      mobile: record.mobileNumber,
+      registrationYear: record.registrationYear || record.yearOfGraduation || fallbackYear,
+    };
+  }
+
+  if (entity === "hospitals") {
+    const fallbackYear = record.createdAt instanceof Date ? record.createdAt.getFullYear() : null;
+    return {
+      name: record.hospitalName,
+      mobile: record.mobile,
+      registrationYear: record.registrationYear || fallbackYear,
+    };
+  }
+
+  if (entity === "pharmacies") {
+    const fallbackYear = record.createdAt instanceof Date ? record.createdAt.getFullYear() : null;
+    return {
+      name: record.legalPharmacyName,
+      mobile: record.phoneNumber,
+      registrationYear: record.registrationYear || fallbackYear,
+    };
+  }
+
+  if (entity === "employers") {
+    const fallbackYear = record.createdAt instanceof Date ? record.createdAt.getFullYear() : null;
+    return {
+      name: record.companyName,
+      mobile: record.mobile || record.phoneNumber || record.phone,
+      registrationYear: record.registrationYear || fallbackYear,
+    };
+  }
+
   return null;
 };
 
@@ -319,19 +389,15 @@ const buildGeneratedId = (candidate) => {
     });
   }
 
-  if (candidate.role === "doctor") {
-    return generateDoctorId({
+  if (["doctor", "hospital", "pharmacy", "employer"].includes(candidate.role)) {
+    return generateUserId({
       name: candidate.name,
       registrationYear: candidate.registrationYear,
-      phone: candidate.phone,
+      mobile: candidate.phone,
     });
   }
 
-  return generateHospitalId({
-    name: candidate.name,
-    registrationYear: candidate.registrationYear,
-    phone: candidate.phone,
-  });
+  throw new AppError("Unsupported role for ID generation", 400);
 };
 
 const loginAdmin = asyncHandler(async (req, res) => {
@@ -503,13 +569,34 @@ const approveEntity = asyncHandler(async (req, res) => {
 
   const config = getEntityConfig(entity);
   const id = parseObjectIdParam(resolveEntityId(req));
+
+  const existingRecord = await config.model.findById(id);
+  if (!existingRecord) {
+    throw new AppError("Record not found", 404);
+  }
+
+  const updatePayload = {
+    status: "Approved",
+    rejectionReason: "",
+  };
+
+  if (COMMON_ID_ENTITY_KEYS.includes(entity)) {
+    const existingGeneratedId = String(existingRecord.generatedId || "").trim().toUpperCase();
+    if (existingGeneratedId) {
+      updatePayload.generatedId = existingGeneratedId;
+    } else {
+      const idCandidate = buildCommonIdCandidateFromEntity(entity, existingRecord);
+      updatePayload.generatedId = await ensureUniqueGeneratedId({
+        model: config.model,
+        baseId: generateUserId(idCandidate),
+      });
+    }
+  }
+
   const record = await config.model.findByIdAndUpdate(
     id,
     {
-      $set: {
-        status: "Approved",
-        rejectionReason: "",
-      },
+      $set: updatePayload,
     },
     { new: true }
   );
@@ -519,11 +606,17 @@ const approveEntity = asyncHandler(async (req, res) => {
   }
 
   const requestBody = req.body && typeof req.body === "object" ? req.body : {};
+  const loginLink = String(
+    process.env.APP_LOGIN_URL || process.env.FRONTEND_LOGIN_URL || "https://plumedica.com/login"
+  ).trim();
+  const persistedPassword = String(record.password || "").trim();
+  const approvalPassword = String(requestBody.password || "").trim();
   const emailPayload = {
     name: pickFirstDefinedValue(record, config.nameFields) || "User",
     email: pickFirstDefinedValue(record, config.emailFields),
     generatedId: String(record.generatedId || "").trim(),
-    password: String(requestBody.password || record.password || "").trim(),
+    password: approvalPassword || (BCRYPT_HASH_REGEX.test(persistedPassword) ? "" : persistedPassword),
+    loginLink,
   };
 
   const emailResult = await sendStatusEmail(emailPayload, "Approved");
@@ -767,6 +860,9 @@ const updateStatus = asyncHandler(async (req, res) => {
     email: candidate.email || updatedUser.email,
     generatedId: String(updatedUser.generatedId || "").trim(),
     password: emailPassword,
+    loginLink: String(
+      process.env.APP_LOGIN_URL || process.env.FRONTEND_LOGIN_URL || "https://plumedica.com/login"
+    ).trim(),
   };
 
   const emailResult = await sendStatusEmail(emailPayload, nextStatus, reason);
