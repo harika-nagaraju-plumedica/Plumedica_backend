@@ -93,38 +93,52 @@ const generateHospitalId = ({ name, registrationYear, phone }) => {
 const generateUserId = (user) => {
   const payload = user && typeof user === "object" ? user : {};
 
-  const name = String(payload.name || "").trim();
-  const registrationYearValue = payload.registrationYear;
-  const mobile = String(payload.mobile || "").trim();
-
-  if (!name) {
+  if (!String(payload.name || "").trim()) {
     throw new AppError("name is required for ID generation", 400);
   }
 
-  if (registrationYearValue === null || registrationYearValue === undefined || registrationYearValue === "") {
+  if (payload.registrationYear === null || payload.registrationYear === undefined || payload.registrationYear === "") {
     throw new AppError("registrationYear is required for ID generation", 400);
   }
 
-  if (!mobile) {
-    throw new AppError("mobile is required for ID generation", 400);
+  if (!String(payload.mobile || payload.phone || "").trim()) {
+    throw new AppError("mobile or phone is required for ID generation", 400);
   }
 
-  const initials = generateInitialsPrefix(name);
+  // Step 1: Get first 2 initials ONLY
+  const nameParts = String(payload.name).trim().split(" ");
 
-  let fullYear = "";
-  const normalizedYearInput = String(registrationYearValue).trim();
-  if (/^\d{4}$/.test(normalizedYearInput)) {
-    fullYear = normalizedYearInput;
-  } else if (registrationYearValue instanceof Date || !Number.isNaN(new Date(registrationYearValue).getTime())) {
-    fullYear = String(new Date(registrationYearValue).getFullYear());
-  } else {
-    fullYear = normalizedYearInput;
+  let initials = "";
+
+  for (let i = 0; i < nameParts.length; i += 1) {
+    if (nameParts[i].length > 0) {
+      initials += nameParts[i][0];
+    }
   }
 
-  const yearSuffix = extractYearLastTwoDigits(fullYear, "registrationYear");
-  const mobileLastTwo = extractLastTwoDigits(mobile, "mobile");
+  initials = initials.substring(0, 2).toUpperCase();
 
-  return `${initials}${yearSuffix}${mobileLastTwo}`;
+  // Step 2: Get correct year (last 2 digits)
+  let year = "";
+
+  if (payload.registrationYear) {
+    year = String(payload.registrationYear).slice(-2);
+  } else if (payload.createdAt) {
+    year = new Date(payload.createdAt)
+      .getFullYear()
+      .toString()
+      .slice(-2);
+  }
+
+  // Step 3: Get last 2 digits of mobile
+  const mobileLast2 = String(payload.mobile || payload.phone).slice(-2);
+
+  // Final ID
+  const finalId = `${initials}${year}${mobileLast2}`;
+
+  console.log("Generated ID:", finalId);
+
+  return finalId;
 };
 
 const generateId = (user, type) => {

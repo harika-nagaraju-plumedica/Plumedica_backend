@@ -400,6 +400,39 @@ const buildGeneratedId = (candidate) => {
   throw new AppError("Unsupported role for ID generation", 400);
 };
 
+const validateCommonIdFields = ({ name, registrationYear, mobile }) => {
+  if (!String(name || "").trim()) {
+    throw new AppError("name is required for ID generation", 400);
+  }
+
+  if (registrationYear === null || registrationYear === undefined || registrationYear === "") {
+    throw new AppError("registrationYear is required for ID generation", 400);
+  }
+
+  if (!String(mobile || "").trim()) {
+    throw new AppError("mobile or phone is required for ID generation", 400);
+  }
+};
+
+const generateCommonApprovalId = ({ name, registrationYear, mobile, createdAt }) => {
+  validateCommonIdFields({ name, registrationYear, mobile });
+
+  console.log("Name:", name);
+  console.log("Year:", registrationYear);
+  console.log("Mobile:", mobile);
+
+  const generatedId = generateUserId({
+    name,
+    registrationYear,
+    mobile,
+    createdAt,
+  });
+
+  console.log("Generated ID:", generatedId);
+
+  return String(generatedId).trim().toUpperCase();
+};
+
 const loginAdmin = asyncHandler(async (req, res) => {
   const requiredFields = ["email", "password"];
   const missingFields = validateRequiredFields(req.body, requiredFields);
@@ -586,10 +619,20 @@ const approveEntity = asyncHandler(async (req, res) => {
       updatePayload.generatedId = existingGeneratedId;
     } else {
       const idCandidate = buildCommonIdCandidateFromEntity(entity, existingRecord);
-      updatePayload.generatedId = await ensureUniqueGeneratedId({
-        model: config.model,
-        baseId: generateUserId(idCandidate),
+      const generatedId = generateCommonApprovalId({
+        name: idCandidate?.name,
+        registrationYear: idCandidate?.registrationYear,
+        mobile: idCandidate?.mobile,
+        createdAt: existingRecord.createdAt,
       });
+      const duplicateGeneratedId = await config.model.exists({
+        generatedId,
+        _id: { $ne: existingRecord._id },
+      });
+      if (duplicateGeneratedId) {
+        throw new AppError("Generated ID already exists for another record", 409);
+      }
+      updatePayload.generatedId = generatedId;
     }
   }
 
@@ -711,12 +754,30 @@ const approveUserById = asyncHandler(async (req, res) => {
     throw new AppError("User not found for approval", 404);
   }
 
-  const generatedId = String(candidate.doc.generatedId || "").trim()
-    ? String(candidate.doc.generatedId).trim().toUpperCase()
-    : await ensureUniqueGeneratedId({
+  let generatedId = String(candidate.doc.generatedId || "").trim().toUpperCase();
+  if (!generatedId) {
+    if (["doctor", "hospital", "pharmacy", "employer"].includes(candidate.role)) {
+      generatedId = generateCommonApprovalId({
+        name: candidate.name,
+        registrationYear: candidate.registrationYear,
+        mobile: candidate.phone,
+        createdAt: candidate.doc.createdAt,
+      });
+
+      const duplicateGeneratedId = await candidate.model.exists({
+        generatedId,
+        _id: { $ne: candidate.doc._id },
+      });
+      if (duplicateGeneratedId) {
+        throw new AppError("Generated ID already exists for another record", 409);
+      }
+    } else {
+      generatedId = await ensureUniqueGeneratedId({
         model: candidate.model,
         baseId: buildGeneratedId(candidate),
       });
+    }
+  }
 
   candidate.doc.generatedId = generatedId;
   candidate.doc.status = "Approved";
@@ -833,12 +894,31 @@ const updateStatus = asyncHandler(async (req, res) => {
 
   if (nextStatus === "Approved") {
     const existingGeneratedId = String(candidate.doc.generatedId || "").trim().toUpperCase();
-    updatePayload.generatedId = existingGeneratedId
-      ? existingGeneratedId
-      : await ensureUniqueGeneratedId({
-          model: candidate.model,
-          baseId: buildGeneratedId(candidate),
-        });
+    if (existingGeneratedId) {
+      updatePayload.generatedId = existingGeneratedId;
+    } else if (["doctor", "hospital", "pharmacy", "employer"].includes(candidate.role)) {
+      const generatedId = generateCommonApprovalId({
+        name: candidate.name,
+        registrationYear: candidate.registrationYear,
+        mobile: candidate.phone,
+        createdAt: candidate.doc.createdAt,
+      });
+
+      const duplicateGeneratedId = await candidate.model.exists({
+        generatedId,
+        _id: { $ne: candidate.doc._id },
+      });
+      if (duplicateGeneratedId) {
+        throw new AppError("Generated ID already exists for another record", 409);
+      }
+
+      updatePayload.generatedId = generatedId;
+    } else {
+      updatePayload.generatedId = await ensureUniqueGeneratedId({
+        model: candidate.model,
+        baseId: buildGeneratedId(candidate),
+      });
+    }
   }
 
   const updatedUser = await candidate.model.findByIdAndUpdate(

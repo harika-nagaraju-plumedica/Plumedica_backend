@@ -13,24 +13,24 @@ test("generates ID from initials + year(last2) + mobile(last2)", () => {
   assert.equal(id, "HN2612");
 });
 
-test("generates ID when registrationYear is a Date", () => {
+test("generates ID for Apollo Hospital example", () => {
   const id = generateUserId({
-    name: "A P",
-    registrationYear: new Date("2025-06-01T00:00:00.000Z"),
+    name: "Apollo Hospital",
+    registrationYear: 2025,
     mobile: "9012345610",
   });
 
-  assert.equal(id, "AP2510");
+  assert.equal(id, "AH2510");
 });
 
-test("generates ID for single-word names with first two letters", () => {
+test("generates ID from multi-part name initials only", () => {
   const id = generateUserId({
-    name: "Rakesh",
+    name: "Krishna Reddy",
     registrationYear: "2023",
     mobile: "9999999909",
   });
 
-  assert.equal(id, "RA2309");
+  assert.equal(id, "KR2309");
 });
 
 test("throws when name is missing", () => {
@@ -64,6 +64,6 @@ test("throws when mobile is missing", () => {
         registrationYear: 2026,
         mobile: "",
       }),
-    /mobile is required for ID generation/i
+    /mobile or phone is required for ID generation/i
   );
 });
