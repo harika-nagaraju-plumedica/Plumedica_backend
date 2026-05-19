@@ -105,32 +105,30 @@ const generateUserId = (user) => {
     throw new AppError("mobile or phone is required for ID generation", 400);
   }
 
-  // Step 1: Get first 2 initials ONLY
-  const nameParts = String(payload.name).trim().split(" ");
+  // Step 1: Remove prefixes
+  let name = String(payload.name || "").toLowerCase();
 
+  const prefixes = ["dr", "dr.", "mr", "mr.", "mrs", "ms", "prof"];
+
+  const words = name.split(" ").filter((word) => !prefixes.includes(word));
+
+  // Step 2: Take initials from first two valid words
   let initials = "";
 
-  for (let i = 0; i < nameParts.length; i += 1) {
-    if (nameParts[i].length > 0) {
-      initials += nameParts[i][0];
-    }
+  if (words.length === 1) {
+    // If single name -> take first 2 letters
+    initials = words[0].substring(0, 2);
+  } else {
+    // If multiple words -> take first letter of first two words
+    initials = words[0][0] + words[1][0];
   }
 
-  initials = initials.substring(0, 2).toUpperCase();
+  initials = initials.toUpperCase();
 
-  // Step 2: Get correct year (last 2 digits)
-  let year = "";
+  // Step 3: Extract last 2 digits of year
+  const year = String(payload.registrationYear || new Date().getFullYear()).slice(-2);
 
-  if (payload.registrationYear) {
-    year = String(payload.registrationYear).slice(-2);
-  } else if (payload.createdAt) {
-    year = new Date(payload.createdAt)
-      .getFullYear()
-      .toString()
-      .slice(-2);
-  }
-
-  // Step 3: Get last 2 digits of mobile
+  // Step 4: Extract last 2 digits of mobile
   const mobileLast2 = String(payload.mobile || payload.phone).slice(-2);
 
   // Final ID

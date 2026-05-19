@@ -13,6 +13,46 @@ test("generates ID from initials + year(last2) + mobile(last2)", () => {
   assert.equal(id, "HN2612");
 });
 
+test("generates ID for single name as first two letters", () => {
+  const id = generateUserId({
+    name: "Harika",
+    registrationYear: 2026,
+    mobile: "9876543212",
+  });
+
+  assert.equal(id, "HA2612");
+});
+
+test("ignores Dr prefix for single-name input", () => {
+  const id = generateUserId({
+    name: "Dr Harika",
+    registrationYear: 2026,
+    mobile: "9876543212",
+  });
+
+  assert.equal(id, "HA2612");
+});
+
+test("ignores Dr. prefix for full-name input", () => {
+  const id = generateUserId({
+    name: "Dr. Harika Nagaraju",
+    registrationYear: 2026,
+    mobile: "9876543212",
+  });
+
+  assert.equal(id, "HN2612");
+});
+
+test("ignores Mr prefix for full-name input", () => {
+  const id = generateUserId({
+    name: "Mr Krishna Reddy",
+    registrationYear: 2026,
+    mobile: "9876543212",
+  });
+
+  assert.equal(id, "KR2612");
+});
+
 test("generates ID for Apollo Hospital example", () => {
   const id = generateUserId({
     name: "Apollo Hospital",
