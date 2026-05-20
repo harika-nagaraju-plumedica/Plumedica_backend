@@ -20,6 +20,7 @@ const PartnerOrganization = require("../models/PartnerOrganization");
 const Patient = require("../models/Patient");
 const JobSeeker = require("../models/JobSeeker");
 const Employer = require("../models/Employer");
+const Diagnostics = require("../models/Diagnostics");
 const ApprovalUser = require("../models/ApprovalUser");
 
 const ENTITY_CONFIG = {
@@ -491,10 +492,12 @@ const getDashboard = asyncHandler(async (req, res) => {
     totalPatients,
     totalJobSeekers,
     totalEmployers,
+    diagnosticsCount,
     pendingDoctors,
     pendingHospitals,
     pendingPharmacies,
     pendingInsurance,
+    pendingDiagnosticsCount,
     approvedDoctors,
     approvedHospitals,
     approvedPharmacies,
@@ -511,10 +514,12 @@ const getDashboard = asyncHandler(async (req, res) => {
     Patient.countDocuments(),
     JobSeeker.countDocuments(),
     Employer.countDocuments(),
+    Diagnostics.countDocuments(),
     Doctor.countDocuments({ status: "Pending" }),
     Hospital.countDocuments({ status: "Pending" }),
     Pharmacy.countDocuments({ status: "Pending" }),
     PartnerOrganization.countDocuments({ status: "Pending" }),
+    Diagnostics.countDocuments({ status: "Pending" }),
     Doctor.countDocuments({ status: "Approved" }),
     Hospital.countDocuments({ status: "Approved" }),
     Pharmacy.countDocuments({ status: "Approved" }),
@@ -535,8 +540,17 @@ const getDashboard = asyncHandler(async (req, res) => {
       jobSeekers: totalJobSeekers,
       employers: totalEmployers,
     },
+    diagnostics: {
+      total: diagnosticsCount,
+      pendingApprovals: pendingDiagnosticsCount || 0,
+    },
     approvalPipeline: {
-      pending: pendingDoctors + pendingHospitals + pendingPharmacies + pendingInsurance,
+      pending:
+        pendingDoctors +
+        pendingHospitals +
+        pendingPharmacies +
+        pendingInsurance +
+        pendingDiagnosticsCount,
       approved: approvedDoctors + approvedHospitals + approvedPharmacies + approvedInsurance,
       rejected: rejectedDoctors + rejectedHospitals + rejectedPharmacies + rejectedInsurance,
     },

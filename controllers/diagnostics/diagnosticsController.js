@@ -1,5 +1,5 @@
 const bcrypt = require("bcryptjs");
-const DiagnosticsCenter = require("../../models/DiagnosticsCenter");
+const Diagnostics = require("../../models/Diagnostics");
 const asyncHandler = require("../../utils/asyncHandler");
 const sendResponse = require("../../utils/apiResponse");
 const AppError = require("../../utils/AppError");
@@ -22,7 +22,7 @@ const registerDiagnosticsCenter = asyncHandler(async (req, res) => {
   }
 
   const hashedPassword = await bcrypt.hash(req.body.password, 10);
-  const diagnosticsCenter = await DiagnosticsCenter.create({
+  const diagnosticsCenter = await Diagnostics.create({
     ...req.body,
     email: normalizedEmail,
     password: hashedPassword,
@@ -44,6 +44,24 @@ const registerDiagnosticsCenter = asyncHandler(async (req, res) => {
   });
 });
 
+const getAllDiagnostics = async (req, res) => {
+  try {
+    const data = await Diagnostics.find().sort({ createdAt: -1 });
+
+    return res.json({
+      success: true,
+      count: data.length,
+      data,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 module.exports = {
   registerDiagnosticsCenter,
+  getAllDiagnostics,
 };
