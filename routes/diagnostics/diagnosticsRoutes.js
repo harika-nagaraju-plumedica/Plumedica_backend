@@ -1,12 +1,12 @@
 const express = require("express");
 const {
   registerDiagnosticsCenter,
-  getAllDiagnostics,
+  getDiagnostics,
 } = require("../../controllers/diagnostics/diagnosticsController");
 
 const router = express.Router();
 
-router.get("/", getAllDiagnostics);
+router.get("/", getDiagnostics);
 router.post("/", registerDiagnosticsCenter);
 
 module.exports = router;

@@ -44,9 +44,28 @@ const registerDiagnosticsCenter = asyncHandler(async (req, res) => {
   });
 });
 
-const getAllDiagnostics = async (req, res) => {
+const getDiagnostics = async (req, res) => {
   try {
-    const data = await Diagnostics.find().sort({ createdAt: -1 });
+    const { search, fromDate, toDate } = req.query || {};
+    const filter = {};
+
+    if (search) {
+      filter.centerName = { $regex: String(search).trim(), $options: "i" };
+    }
+
+    if (fromDate && toDate) {
+      const from = new Date(fromDate);
+      const to = new Date(toDate);
+
+      if (!Number.isNaN(from.getTime()) && !Number.isNaN(to.getTime())) {
+        filter.createdAt = {
+          $gte: from,
+          $lte: to,
+        };
+      }
+    }
+
+    const data = await Diagnostics.find(filter).sort({ createdAt: -1 });
 
     return res.json({
       success: true,
@@ -63,5 +82,6 @@ const getAllDiagnostics = async (req, res) => {
 
 module.exports = {
   registerDiagnosticsCenter,
-  getAllDiagnostics,
+  getDiagnostics,
+  getAllDiagnostics: getDiagnostics,
 };
