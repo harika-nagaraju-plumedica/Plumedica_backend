@@ -1,7 +1,11 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { generateUserId } = require("../utils/approvalIdGenerator");
+const {
+  generateUserId,
+  getInitialCombinations,
+  generateUniqueUserId,
+} = require("../utils/approvalIdGenerator");
 
 test("generates ID from initials + year(last2) + mobile(last2)", () => {
   const id = generateUserId({
@@ -106,4 +110,54 @@ test("throws when mobile is missing", () => {
       }),
     /mobile or phone is required for ID generation/i
   );
+});
+
+test("builds two-letter combinations from unique name letters", () => {
+  const combinations = getInitialCombinations("Harika Nagaraju");
+
+  assert.ok(combinations.includes("HN"));
+  assert.ok(combinations.includes("HA"));
+  assert.ok(combinations.includes("HR"));
+  assert.ok(combinations.includes("AN"));
+});
+
+test("resolves duplicate user ID using name-letter combinations before numeric fallback", async () => {
+  const usedIds = new Set(["HN2612"]);
+
+  const model = {
+    exists: async ({ generatedId }) => usedIds.has(String(generatedId).toUpperCase()),
+  };
+
+  const id = await generateUniqueUserId({
+    model,
+    user: {
+      name: "Harika Nagaraju",
+      registrationYear: 2026,
+      mobile: "9876543212",
+    },
+  });
+
+  assert.notEqual(id, "HN2612");
+  assert.match(id, /^[A-Z]{2}2612$/);
+});
+
+test("falls back to numeric suffix only after all letter-combination IDs are used", async () => {
+  const yearAndPhone = "2612";
+  const prefixes = ["HN", ...getInitialCombinations("Harika Nagaraju")];
+  const usedIds = new Set(prefixes.map((prefix) => `${prefix}${yearAndPhone}`.toUpperCase()));
+
+  const model = {
+    exists: async ({ generatedId }) => usedIds.has(String(generatedId).toUpperCase()),
+  };
+
+  const id = await generateUniqueUserId({
+    model,
+    user: {
+      name: "Harika Nagaraju",
+      registrationYear: 2026,
+      mobile: "9876543212",
+    },
+  });
+
+  assert.match(id, /^HN2612\d+$/);
 });

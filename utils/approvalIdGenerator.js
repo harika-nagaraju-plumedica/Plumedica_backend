@@ -139,6 +139,95 @@ const generateUserId = (user) => {
   return finalId;
 };
 
+const getInitialCombinations = (name) => {
+  const normalized = String(name || "")
+    .toLowerCase()
+    .replace(/[^a-z\s]/g, " ")
+    .trim();
+
+  if (!normalized) {
+    return [];
+  }
+
+  const words = normalized.split(/\s+/).filter(Boolean);
+  const letters = [];
+
+  words.forEach((word) => {
+    for (const char of word) {
+      letters.push(char);
+    }
+  });
+
+  const uniqueLetters = [...new Set(letters)];
+  const combinations = [];
+  const seen = new Set();
+
+  for (let i = 0; i < uniqueLetters.length; i += 1) {
+    for (let j = i + 1; j < uniqueLetters.length; j += 1) {
+      const forward = `${uniqueLetters[i]}${uniqueLetters[j]}`.toUpperCase();
+      const backward = `${uniqueLetters[j]}${uniqueLetters[i]}`.toUpperCase();
+
+      if (!seen.has(forward)) {
+        combinations.push(forward);
+        seen.add(forward);
+      }
+
+      if (!seen.has(backward)) {
+        combinations.push(backward);
+        seen.add(backward);
+      }
+    }
+  }
+
+  return combinations;
+};
+
+const generateUniqueUserId = async ({ user, model, excludeId = null }) => {
+  if (!model) {
+    throw new AppError("model is required for unique ID generation", 500);
+  }
+
+  const payload = user && typeof user === "object" ? user : {};
+  const year = String(payload.registrationYear || new Date().getFullYear()).slice(-2);
+  const mobileLast2 = String(payload.mobile || payload.phone || "").slice(-2);
+  const baseId = String(generateUserId(payload)).trim().toUpperCase();
+  const nameCombinations = getInitialCombinations(payload.name);
+  const preferredPrefixes = [baseId.slice(0, 2), ...nameCombinations].filter(Boolean);
+  const uniquePrefixes = [...new Set(preferredPrefixes)];
+
+  const makeQuery = (generatedId) => {
+    if (!excludeId) {
+      return { generatedId };
+    }
+
+    return {
+      generatedId,
+      _id: { $ne: excludeId },
+    };
+  };
+
+  for (const prefix of uniquePrefixes) {
+    const candidate = `${prefix}${year}${mobileLast2}`.toUpperCase();
+    const exists = await model.exists(makeQuery(candidate));
+    if (!exists) {
+      return candidate;
+    }
+  }
+
+  const fallbackPrefix = uniquePrefixes[0] || baseId.slice(0, 2) || "XX";
+  let counter = 1;
+  while (counter <= 9999) {
+    const fallbackId = `${fallbackPrefix}${year}${mobileLast2}${counter}`.toUpperCase();
+    const exists = await model.exists(makeQuery(fallbackId));
+    if (!exists) {
+      return fallbackId;
+    }
+    counter += 1;
+  }
+
+  throw new AppError("Failed to generate unique ID after exhausting combinations", 500);
+};
+
 const generateId = (user, type) => {
   const payload = user && typeof user === "object" ? user : {};
   const normalizedType = String(type || "").trim().toLowerCase();
@@ -197,6 +286,8 @@ const ensureUniqueGeneratedId = async ({ model, baseId, maxAttempts = 50 }) => {
 module.exports = {
   generateId,
   generateUserId,
+  getInitialCombinations,
+  generateUniqueUserId,
   generateNameAbbreviation,
   generateInitialsPrefix,
   extractLastTwoDigits,
