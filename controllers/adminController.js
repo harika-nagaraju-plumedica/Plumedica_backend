@@ -470,6 +470,18 @@ const generateCommonApprovalId = async ({ name, registrationYear, mobile, create
   return String(generatedId).trim().toUpperCase();
 };
 
+const generateDiagnosticsApprovalId = async ({ doc, model }) => {
+  return generateUniqueUserId({
+    model,
+    excludeId: doc._id,
+    user: {
+      name: doc.centerName,
+      registrationYear: doc.createdAt || new Date(),
+      mobile: doc.contactPhone || "00",
+    },
+  });
+};
+
 const loginAdmin = asyncHandler(async (req, res) => {
   const requiredFields = ["email", "password"];
   const missingFields = validateRequiredFields(req.body, requiredFields);
@@ -802,7 +814,10 @@ const approveUserById = asyncHandler(async (req, res) => {
   let generatedId = String(candidate.doc.generatedId || "").trim().toUpperCase();
   if (!generatedId) {
     if (candidate.role === "diagnostics") {
-      generatedId = "";
+      generatedId = await generateDiagnosticsApprovalId({
+        doc: candidate.doc,
+        model: candidate.model,
+      });
     } else if (["doctor", "hospital", "pharmacy", "employer"].includes(candidate.role)) {
       generatedId = await generateCommonApprovalId({
         name: candidate.name,
@@ -820,9 +835,7 @@ const approveUserById = asyncHandler(async (req, res) => {
     }
   }
 
-  if (candidate.role !== "diagnostics") {
-    candidate.doc.generatedId = generatedId;
-  }
+  candidate.doc.generatedId = generatedId;
   candidate.doc.status = "Approved";
   if (Object.prototype.hasOwnProperty.call(candidate.doc.toObject(), "rejectionReason")) {
     candidate.doc.rejectionReason = "";
@@ -939,7 +952,14 @@ const updateStatus = asyncHandler(async (req, res) => {
   if (nextStatus === "Approved") {
     const existingGeneratedId = String(candidate.doc.generatedId || "").trim().toUpperCase();
     if (candidate.role === "diagnostics") {
-      // Diagnostics approvals do not require generatedId.
+      if (existingGeneratedId) {
+        updatePayload.generatedId = existingGeneratedId;
+      } else {
+        updatePayload.generatedId = await generateDiagnosticsApprovalId({
+          doc: candidate.doc,
+          model: candidate.model,
+        });
+      }
     } else if (existingGeneratedId) {
       updatePayload.generatedId = existingGeneratedId;
     } else if (["doctor", "hospital", "pharmacy", "employer"].includes(candidate.role)) {
