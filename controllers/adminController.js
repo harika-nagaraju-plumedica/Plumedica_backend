@@ -260,13 +260,40 @@ const resolveEntityId = (req) => {
   return validObjectId || candidates[0] || "";
 };
 
-const getApprovalCandidateById = async (id) => {
-  const [patient, doctor, hospital, pharmacy, employer] = await Promise.all([
+const getApprovalCandidateById = async (id, preferredType = "") => {
+  const type = String(preferredType || "").trim().toLowerCase();
+  const normalizedType =
+    type === "diagnostics-center" || type === "diagnostics_center" ? "diagnostics" : type;
+
+  const buildDiagnosticsCandidate = (diagnostics) => {
+    if (!diagnostics) {
+      return null;
+    }
+
+    return {
+      role: "diagnostics",
+      model: Diagnostics,
+      doc: diagnostics,
+      name: diagnostics.centerName,
+      phone: diagnostics.contactPhone,
+      email: diagnostics.email,
+      dob: null,
+      registrationYear: null,
+    };
+  };
+
+  if (normalizedType === "diagnostics") {
+    const diagnostics = await Diagnostics.findById(id);
+    return buildDiagnosticsCandidate(diagnostics);
+  }
+
+  const [patient, doctor, hospital, pharmacy, employer, diagnostics] = await Promise.all([
     Patient.findById(id),
     Doctor.findById(id),
     Hospital.findById(id),
     Pharmacy.findById(id),
     Employer.findById(id),
+    Diagnostics.findById(id),
   ]);
 
   if (patient) {
@@ -336,6 +363,10 @@ const getApprovalCandidateById = async (id) => {
       dob: null,
       registrationYear: employer.registrationYear || fallbackYear,
     };
+  }
+
+  if (diagnostics) {
+    return buildDiagnosticsCandidate(diagnostics);
   }
 
   return null;
@@ -770,7 +801,9 @@ const approveUserById = asyncHandler(async (req, res) => {
 
   let generatedId = String(candidate.doc.generatedId || "").trim().toUpperCase();
   if (!generatedId) {
-    if (["doctor", "hospital", "pharmacy", "employer"].includes(candidate.role)) {
+    if (candidate.role === "diagnostics") {
+      generatedId = "";
+    } else if (["doctor", "hospital", "pharmacy", "employer"].includes(candidate.role)) {
       generatedId = generateCommonApprovalId({
         name: candidate.name,
         registrationYear: candidate.registrationYear,
@@ -793,7 +826,9 @@ const approveUserById = asyncHandler(async (req, res) => {
     }
   }
 
-  candidate.doc.generatedId = generatedId;
+  if (candidate.role !== "diagnostics") {
+    candidate.doc.generatedId = generatedId;
+  }
   candidate.doc.status = "Approved";
   if (Object.prototype.hasOwnProperty.call(candidate.doc.toObject(), "rejectionReason")) {
     candidate.doc.rejectionReason = "";
@@ -887,13 +922,14 @@ const updateStatus = asyncHandler(async (req, res) => {
   const id = parseObjectIdParam(req.params.id);
   const body = req.body && typeof req.body === "object" ? req.body : {};
   const nextStatus = normalizeStatus(body.status);
+  const approvalType = String(body.type || body.role || "").trim().toLowerCase();
   const reason = String(body.reason || body.rejectionReason || "").trim();
 
   if (!nextStatus || (nextStatus !== "Approved" && nextStatus !== "Rejected")) {
     throw new AppError("status must be either Approved or Rejected", 400);
   }
 
-  const candidate = await getApprovalCandidateById(id);
+  const candidate = await getApprovalCandidateById(id, approvalType);
   if (!candidate) {
     throw new AppError("User not found", 404);
   }
@@ -908,7 +944,9 @@ const updateStatus = asyncHandler(async (req, res) => {
 
   if (nextStatus === "Approved") {
     const existingGeneratedId = String(candidate.doc.generatedId || "").trim().toUpperCase();
-    if (existingGeneratedId) {
+    if (candidate.role === "diagnostics") {
+      // Diagnostics approvals do not require generatedId.
+    } else if (existingGeneratedId) {
       updatePayload.generatedId = existingGeneratedId;
     } else if (["doctor", "hospital", "pharmacy", "employer"].includes(candidate.role)) {
       const generatedId = generateCommonApprovalId({

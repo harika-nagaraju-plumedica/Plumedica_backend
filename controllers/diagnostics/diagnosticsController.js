@@ -26,6 +26,7 @@ const registerDiagnosticsCenter = asyncHandler(async (req, res) => {
     ...req.body,
     email: normalizedEmail,
     password: hashedPassword,
+    status: "Pending",
   });
 
   const diagnosticsData = diagnosticsCenter.toObject();
